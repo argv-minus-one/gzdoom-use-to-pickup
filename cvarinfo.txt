@@ -1,0 +1,2 @@
+server bool usetopickup_fulluserange = true;
+user bool usetopickup_enabled = true;

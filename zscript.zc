@@ -1,0 +1,281 @@
+Version "3.4"
+
+class UseToPickup : StaticEventHandler {
+	const FADETICS = 8;
+	const FAILUREMESSAGETIME = 70;
+	const HIGHLIGHT_COLOR = Font.CR_WHITE;
+	//const FAILURE_COLOR = Font.CR_RED;
+	const KEYBIND_BACKGROUND = 0xffffffe6;
+	const KEYBIND_COLOR = Font.CR_BLACK;
+	
+	Inventory HighlightedItem[MAXPLAYERS], PrevHighlightedItem[MAXPLAYERS];
+	uint8 HighlightTimer[MAXPLAYERS], FadeTimer[MAXPLAYERS]/*, FailTimer[MAXPLAYERS]*/;
+	Font MsgFont;
+	bool WasEnabled[MAXPLAYERS], IsEnabled[MAXPLAYERS];
+	CVar IsEnabledCVar[MAXPLAYERS];
+	
+	override void OnRegister() {
+		MsgFont = Font.FindFont('SMALLFONT');
+	}
+	
+	override void WorldTick() {
+		let tr = new("InventoryFindingLineTracer");
+		
+		for (let p = 0; p < MAXPLAYERS; p++)
+		if (playeringame[p]) {
+			WasEnabled[p] = IsEnabled[p];
+			IsEnabled[p] = IsEnabledCVar[p]? IsEnabledCVar[p].GetBool() : true;
+			
+			let pp = players[p].mo;
+			if (!pp)
+				// Not in-game, apparently.
+				continue;
+			
+			if (!WasEnabled[p] && IsEnabled[p])
+				pp.bPickup = false;
+			else if (WasEnabled[p] && !IsEnabled[p])
+				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
+			
+			if (!IsEnabled[p])
+				continue;
+			
+			if (pp.Health <= 0)
+				// Dead people can't pick things up!
+				continue;
+			
+			/*double useRange;
+			{
+				let asp = abs(sin(pp.Pitch));
+				useRange = pp.Radius * (1. - asp) + pp.Height * asp;
+			}*/
+			
+			// Decrement active timers.
+			//if (FailTimer[p])
+			//	FailTimer[p]--;
+			if (HighlightTimer[p])
+				HighlightTimer[p]--;
+			if (FadeTimer[p])
+				FadeTimer[p]--;
+			
+			/*Console.Printf(
+				"use=%d olduse=%d hli=%s hlt=%d ft=%d hliowner=%s hlispecial=%d dist=%f maxdist=%f",
+				!!(players[p].cmd.buttons & BT_USE),
+				!(players[p].oldbuttons & BT_USE),
+				HighlightedItem[p]? HighlightedItem[p].GetClassName() : 'None',
+				HighlightTimer[p],
+				FailTimer[p],
+				HighlightedItem[p] && HighlightedItem[p].Owner? HighlightedItem[p].Owner.GetClassName() : 'None',
+				HighlightedItem[p] && HighlightedItem[p].bSpecial,
+				HighlightedItem[p]? pp.Distance3D(HighlightedItem[p]) : 0,
+				useRange
+			);*/
+			
+			if (
+				(players[p].cmd.buttons & BT_USE) &&
+				!(players[p].oldbuttons & BT_USE) &&
+				HighlightedItem[p] &&
+				HighlightTimer[p] == 0 &&
+				//FailTimer[p] == 0 &&
+				!HighlightedItem[p].Owner &&
+				HighlightedItem[p].bSpecial /*&&
+				pp.Distance3D(HighlightedItem[p]) <= useRange*/
+			) {
+				// Player wants to pick up the highlighted item, and is allowed to do so.
+				//Console.Printf("Trying to pick up %s", HighlightedItem[p].GetClassName());
+				HighlightedItem[p].Touch(pp);
+				/*
+				if (!HighlightedItem[p].CallTryPickup(pp))
+					FailTimer[p] = FAILUREMESSAGETIME;
+				*/
+			}
+			
+			// Search for an item in range.
+			let traced = tr.TraceToInventory(pp/*, useRange*/);
+			
+			if (traced) {
+				//Console.Printf("Trace hit %s", tr.Results.HitActor.GetClassName());
+				// Found one.
+				if (traced != HighlightedItem[p]) {
+					// It's a different item than last tic.
+					PrevHighlightedItem[p] = HighlightedItem[p];
+					HighlightedItem[p] = traced;
+					HighlightTimer[p] = FADETICS;
+					FadeTimer[p] = FADETICS;
+				}
+				// Otherwise, it's the same item as last tic, so do nothing.
+			}
+			else {
+				// Didn't find anything.
+				if (HighlightedItem[p]) {
+					// There was something before, so fade it away.
+					PrevHighlightedItem[p] = HighlightedItem[p];
+					HighlightedItem[p] = null;
+					FadeTimer[p] = FADETICS - HighlightTimer[p];
+					HighlightTimer[p] = 0;
+				}
+				// Otherwise, there was no item last tic and there still isn't, so do nothing.
+			}
+		}
+	}
+	
+	override void PlayerEntered(PlayerEvent evt) {
+		let p = evt.PlayerNumber;
+		IsEnabledCVar[p] = CVar.GetCVar('usetopickup_enabled', players[p]);
+		WasEnabled[p] = IsEnabled[p] = false;
+		PrevHighlightedItem[p] = HighlightedItem[p] = null;
+		HighlightTimer[p] = FadeTimer[p] = 0;
+		
+		PlayerRespawned(evt);
+	}
+	
+	override void PlayerDisconnected(PlayerEvent evt) {
+		let p = evt.PlayerNumber;
+		PrevHighlightedItem[p] = HighlightedItem[p] = null;
+		IsEnabledCVar[p] = null;
+	}
+	
+	override void RenderOverlay(RenderEvent evt) {
+		if (automapactive || !playeringame[consoleplayer])
+			return;
+		let pp = players[consoleplayer].mo;
+		if (!pp)
+			return;
+		
+		if (PrevHighlightedItem[consoleplayer] && FadeTimer[consoleplayer])
+			DrawItemHighlight(
+				PrevHighlightedItem[consoleplayer],
+				(FadeTimer[consoleplayer] - evt.FracTic) / double(FADETICS),
+				view
+			);
+		
+		if (HighlightedItem[consoleplayer])
+			DrawItemHighlight(
+				HighlightedItem[consoleplayer],
+				1. - ((HighlightTimer[consoleplayer] - evt.FracTic) / double(FADETICS)),
+				view
+			);
+		
+		/*if (FailTimer[consoleplayer])
+			Screen.DrawText(
+				MsgFont, FAILURE_COLOR,
+				Screen.GetWidth() >> 4,
+				(Screen.GetHeight() >> 2) + (MsgFont.GetHeight() * 4),
+				"Cannot pick up this item",
+				DTA_Alpha, min(1., (FailTimer[consoleplayer] / float(FAILUREMESSAGETIME)) * 4.)
+			);*/
+	}
+	
+	private ui void DrawItemHighlight(Inventory item, double opacity, Actor view) {
+		let tag = item.GetTag(item.GetClassName());
+		
+		int origin[2];
+		origin[0] = Screen.GetWidth() >> 4;
+		origin[1] = Screen.GetHeight() >> 2;
+		let fontHeight = MsgFont.GetHeight() * CleanYFac;
+		
+		Screen.DrawText(
+			MsgFont, HIGHLIGHT_COLOR,
+			origin[0], origin[1],
+			tag,
+			DTA_Alpha, opacity,
+			DTA_CleanNoMove, true
+		);
+		
+		origin[1] += fontHeight * 9 / 5;
+		
+		String keyName;
+		{
+			int bindingKeys[2];
+			[bindingKeys[0], bindingKeys[1]] = Bindings.GetKeysForCommand("+use");
+			keyName = KeyBindings.NameKeys(bindingKeys[0], bindingKeys[1]);
+		}
+		let keyNameWidth = MsgFont.StringWidth(keyName) * CleanXFac;
+		let borderWidth = max(fontHeight >> 2, 1);
+		
+		Screen.Dim(
+			KEYBIND_BACKGROUND,
+			opacity,
+			origin[0] - borderWidth,
+			origin[1] - borderWidth,
+			keyNameWidth + borderWidth + borderWidth,
+			fontHeight + borderWidth + borderWidth
+		);
+		
+		Screen.DrawText(
+			MsgFont, KEYBIND_COLOR,
+			origin[0], origin[1],
+			keyName,
+			DTA_Alpha, opacity,
+			DTA_CleanNoMove, true
+		);
+		
+		origin[0] += keyNameWidth + (fontHeight >> 1);
+		
+		Screen.DrawText(
+			MsgFont, HIGHLIGHT_COLOR,
+			origin[0], origin[1],
+			"Pick up",
+			DTA_Alpha, opacity,
+			DTA_CleanNoMove, true
+		);
+	}
+}
+
+class InventoryFindingLineTracer : LineTracer {
+	Array<Actor> PotentiallyBlockingActors;
+	
+	play Inventory TraceToInventory(Actor from/*, double range*/) {
+		PotentiallyBlockingActors.Clear();
+		
+		let viewPos = from.Pos;
+		viewPos.Z = from.player? from.player.viewz : viewPos.Z + (from.Height / 2.);
+		//Console.Printf("Current pos: %f,%f,%f", viewPos.X, viewPos.Y, viewPos.Z);
+		
+		let viewDir = (cos(from.Pitch) * cos(from.Angle), cos(from.Pitch) * sin(from.Angle), -sin(from.Pitch));
+		//Console.Printf("Looking in: %f,%f,%f", viewDir.X, viewDir.Y, viewDir.Z);
+		
+		double range;
+		if (usetopickup_fulluserange && from is "PlayerPawn")
+			range = PlayerPawn(from).UseRange;
+		else
+			range = from.Radius * (1. - abs(viewDir.Z)) + from.Height * abs(viewDir.Z);
+		
+		if (Trace(viewPos, from.CurSector, viewDir, range, 0)) {
+			for (let i = 0, s = PotentiallyBlockingActors.Size(); i < s; i++)
+			if (
+				from != PotentiallyBlockingActors[i] &&
+				from.CanCollideWith(PotentiallyBlockingActors[i], true) &&
+				PotentiallyBlockingActors[i].CanCollideWith(from, false)
+			) {
+				//Console.Printf("Trace blocked by %s", PotentiallyBlockingActors[i].GetClassName());
+				return null;
+			}
+		}
+		
+		return Inventory(Results.HitActor);
+	}
+	
+	override ETraceStatus TraceCallback() {
+		switch (Results.HitType) {
+			case TRACE_HitFloor:
+			case TRACE_HitCeiling:
+			case TRACE_HitWall:
+				//Console.Printf("Trace hit %d; aborting", Results.HitType);
+				return TRACE_Abort;
+			
+			case TRACE_HitActor:
+				if (Results.HitActor is "Inventory" && Results.HitActor.bSpecial)
+					return TRACE_Stop;
+				else if (Results.HitActor.bSolid) {
+					//Console.Printf("Potentially blocking actor: %s", Results.HitActor.GetClassName());
+					PotentiallyBlockingActors.Push(Results.HitActor);
+					return TRACE_Skip;
+				}
+				
+				// intentional fall through
+			
+			default:
+				return TRACE_Skip;
+		}
+	}
+}
