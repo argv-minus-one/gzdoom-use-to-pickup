@@ -142,22 +142,24 @@ class UseToPickup : StaticEventHandler {
 	override void RenderOverlay(RenderEvent evt) {
 		if (automapactive || !playeringame[consoleplayer])
 			return;
-		let pp = players[consoleplayer].mo;
-		if (!pp)
-			return;
+		
+		// https://forum.zdoom.org/viewtopic.php?f=122&t=61330#p1064117
+		let worldToClip = U2P_Matrix.worldToClip(evt.ViewPos, evt.ViewAngle, evt.ViewPitch, evt.ViewRoll, players[consoleplayer].FOV);
 		
 		if (PrevHighlightedItem[consoleplayer] && FadeTimer[consoleplayer])
 			DrawItemHighlight(
 				PrevHighlightedItem[consoleplayer],
 				(FadeTimer[consoleplayer] - evt.FracTic) / double(FADETICS),
-				view
+				evt,
+				worldToClip
 			);
 		
 		if (HighlightedItem[consoleplayer])
 			DrawItemHighlight(
 				HighlightedItem[consoleplayer],
 				1. - ((HighlightTimer[consoleplayer] - evt.FracTic) / double(FADETICS)),
-				view
+				evt,
+				worldToClip
 			);
 		
 		/*if (FailTimer[consoleplayer])
@@ -170,7 +172,18 @@ class UseToPickup : StaticEventHandler {
 			);*/
 	}
 	
-	private ui void DrawItemHighlight(Inventory item, double opacity, Actor view) {
+	private ui void DrawItemHighlight(Inventory item, double opacity, RenderEvent evt, U2P_Matrix worldToClip) {
+		let itemRelPos = evt.ViewPos + LevelLocals.Vec3Diff(evt.ViewPos, item.Pos);
+		
+		let itemTopLeft = U2P_GlobalMaths.ndcToViewPort(
+			worldToClip.multiplyVector3(itemRelPos + (0, 0, item.Height)).asVector3()
+		);
+		
+		let itemBottomRight = U2P_GlobalMaths.ndcToViewPort(
+			worldToClip.multiplyVector3(itemRelPos).asVector3()
+		);
+		Screen.DrawLine(itemTopLeft.X, itemTopLeft.Y, itemBottomRight.X, itemBottomRight.Y, 0xff00ffff);
+		
 		let tag = item.GetTag(item.GetClassName());
 		
 		int origin[2];
