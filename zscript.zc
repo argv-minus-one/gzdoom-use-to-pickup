@@ -1,5 +1,8 @@
 Version "3.4"
 
+// See https://gitlab.com/Gutawer/gzdoom-gutamatics/
+#include "U2P_Gutamatics/Include.zsc"
+
 class UseToPickup : StaticEventHandler {
 	const FADETICS = 8;
 	const FAILUREMESSAGETIME = 70;
