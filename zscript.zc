@@ -23,32 +23,6 @@ class UseToPickup : StaticEventHandler {
 		
 		for (let p = 0; p < MAXPLAYERS; p++)
 		if (playeringame[p]) {
-			WasEnabled[p] = IsEnabled[p];
-			IsEnabled[p] = IsEnabledCVar[p]? IsEnabledCVar[p].GetBool() : true;
-			
-			let pp = players[p].mo;
-			if (!pp)
-				// Not in-game, apparently.
-				continue;
-			
-			if (!WasEnabled[p] && IsEnabled[p])
-				pp.bPickup = false;
-			else if (WasEnabled[p] && !IsEnabled[p])
-				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
-			
-			if (!IsEnabled[p])
-				continue;
-			
-			if (pp.Health <= 0)
-				// Dead people can't pick things up!
-				continue;
-			
-			/*double useRange;
-			{
-				let asp = abs(sin(pp.Pitch));
-				useRange = pp.Radius * (1. - asp) + pp.Height * asp;
-			}*/
-			
 			// Decrement active timers.
 			//if (FailTimer[p])
 			//	FailTimer[p]--;
@@ -56,6 +30,34 @@ class UseToPickup : StaticEventHandler {
 				HighlightTimer[p]--;
 			if (FadeTimer[p])
 				FadeTimer[p]--;
+			
+			let pp = players[p].mo;
+			if (!pp) {
+				// Not in-game, apparently.
+				WasEnabled[p] = IsEnabled[p] = false;
+				continue;
+			}
+			
+			WasEnabled[p] = IsEnabled[p];
+			IsEnabled[p] = (!IsEnabledCVar[p] || IsEnabledCVar[p].GetBool()) && pp.Health > 0;
+			
+			if (IsEnabled[p])
+				pp.bPickup = false;
+			else if (WasEnabled[p] && !IsEnabled[p]) {
+				PrevHighlightedItem[p] = HighlightedItem[p];
+				HighlightedItem[p] = null;
+				FadeTimer[p] = FADETICS;
+				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
+			}
+			
+			if (!IsEnabled[p])
+				continue;
+			
+			/*double useRange;
+			{
+				let asp = abs(sin(pp.Pitch));
+				useRange = pp.Radius * (1. - asp) + pp.Height * asp;
+			}*/
 			
 			/*Console.Printf(
 				"use=%d olduse=%d hli=%s hlt=%d ft=%d hliowner=%s hlispecial=%d dist=%f maxdist=%f",
