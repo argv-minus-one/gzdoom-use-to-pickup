@@ -4,197 +4,343 @@ Version "3.4"
 #include "U2P_Gutamatics/Include.zsc"
 
 class UseToPickup : StaticEventHandler {
-	const FADETICS = 8;
-	const FAILUREMESSAGETIME = 70;
-	const HIGHLIGHT_COLOR = Font.CR_WHITE;
-	//const FAILURE_COLOR = Font.CR_RED;
-	const KEYBIND_BACKGROUND = 0xffffffe6;
-	const KEYBIND_COLOR = Font.CR_BLACK;
-	
-	Inventory HighlightedItem[MAXPLAYERS], PrevHighlightedItem[MAXPLAYERS];
-	uint8 HighlightTimer[MAXPLAYERS], FadeTimer[MAXPLAYERS]/*, FailTimer[MAXPLAYERS]*/;
+	U2P_PlayerState PlayerStates[MAXPLAYERS];
 	Font MsgFont;
-	bool WasEnabled[MAXPLAYERS], IsEnabled[MAXPLAYERS];
-	CVar IsEnabledCVar[MAXPLAYERS];
 	
 	override void OnRegister() {
 		MsgFont = Font.FindFont('SMALLFONT');
 	}
 	
 	override void WorldTick() {
-		let tr = new("InventoryFindingLineTracer");
-		
 		for (let p = 0; p < MAXPLAYERS; p++)
 		if (playeringame[p]) {
-			// Decrement active timers.
-			//if (FailTimer[p])
-			//	FailTimer[p]--;
-			if (HighlightTimer[p])
-				HighlightTimer[p]--;
-			if (FadeTimer[p])
-				FadeTimer[p]--;
+			PlayerStates[p].Tick();
 			
 			let pp = players[p].mo;
-			if (!pp) {
-				// Not in-game, apparently.
-				WasEnabled[p] = IsEnabled[p] = false;
+			if (!pp || pp.Health <= 0) {
+				PlayerStates[p].FadeOutAll();
 				continue;
-			}
-			
-			WasEnabled[p] = IsEnabled[p];
-			IsEnabled[p] = (!IsEnabledCVar[p] || IsEnabledCVar[p].GetBool()) && pp.Health > 0;
-			
-			if (IsEnabled[p])
-				pp.bPickup = false;
-			else if (WasEnabled[p] && !IsEnabled[p]) {
-				PrevHighlightedItem[p] = HighlightedItem[p];
-				HighlightedItem[p] = null;
-				FadeTimer[p] = FADETICS;
-				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
-			}
-			
-			if (!IsEnabled[p])
-				continue;
-			
-			/*double useRange;
-			{
-				let asp = abs(sin(pp.Pitch));
-				useRange = pp.Radius * (1. - asp) + pp.Height * asp;
-			}*/
-			
-			/*Console.Printf(
-				"use=%d olduse=%d hli=%s hlt=%d ft=%d hliowner=%s hlispecial=%d dist=%f maxdist=%f",
-				!!(players[p].cmd.buttons & BT_USE),
-				!(players[p].oldbuttons & BT_USE),
-				HighlightedItem[p]? HighlightedItem[p].GetClassName() : 'None',
-				HighlightTimer[p],
-				FailTimer[p],
-				HighlightedItem[p] && HighlightedItem[p].Owner? HighlightedItem[p].Owner.GetClassName() : 'None',
-				HighlightedItem[p] && HighlightedItem[p].bSpecial,
-				HighlightedItem[p]? pp.Distance3D(HighlightedItem[p]) : 0,
-				useRange
-			);*/
-			
-			if (
-				(players[p].cmd.buttons & BT_USE) &&
-				!(players[p].oldbuttons & BT_USE) &&
-				HighlightedItem[p] &&
-				HighlightTimer[p] == 0 &&
-				//FailTimer[p] == 0 &&
-				!HighlightedItem[p].Owner &&
-				HighlightedItem[p].bSpecial /*&&
-				pp.Distance3D(HighlightedItem[p]) <= useRange*/
-			) {
-				// Player wants to pick up the highlighted item, and is allowed to do so.
-				//Console.Printf("Trying to pick up %s", HighlightedItem[p].GetClassName());
-				HighlightedItem[p].Touch(pp);
-				/*
-				if (!HighlightedItem[p].CallTryPickup(pp))
-					FailTimer[p] = FAILUREMESSAGETIME;
-				*/
-			}
-			
-			// Search for an item in range.
-			let traced = tr.TraceToInventory(pp/*, useRange*/);
-			
-			if (traced) {
-				//Console.Printf("Trace hit %s", tr.Results.HitActor.GetClassName());
-				// Found one.
-				if (traced != HighlightedItem[p]) {
-					// It's a different item than last tic.
-					PrevHighlightedItem[p] = HighlightedItem[p];
-					HighlightedItem[p] = traced;
-					HighlightTimer[p] = FADETICS;
-					FadeTimer[p] = FADETICS;
-				}
-				// Otherwise, it's the same item as last tic, so do nothing.
-			}
-			else {
-				// Didn't find anything.
-				if (HighlightedItem[p]) {
-					// There was something before, so fade it away.
-					PrevHighlightedItem[p] = HighlightedItem[p];
-					HighlightedItem[p] = null;
-					FadeTimer[p] = FADETICS - HighlightTimer[p];
-					HighlightTimer[p] = 0;
-				}
-				// Otherwise, there was no item last tic and there still isn't, so do nothing.
 			}
 		}
 	}
 	
 	override void PlayerEntered(PlayerEvent evt) {
 		let p = evt.PlayerNumber;
-		IsEnabledCVar[p] = CVar.GetCVar('usetopickup_enabled', players[p]);
-		WasEnabled[p] = IsEnabled[p] = false;
-		PrevHighlightedItem[p] = HighlightedItem[p] = null;
-		HighlightTimer[p] = FadeTimer[p] = 0;
-		
-		PlayerRespawned(evt);
+		PlayerStates[p].Init(players[p]);
+	}
+	
+	override void PlayerRespawned(PlayerEvent evt) {
+		PlayerStates[evt.PlayerNumber].Clear();
 	}
 	
 	override void PlayerDisconnected(PlayerEvent evt) {
-		let p = evt.PlayerNumber;
-		PrevHighlightedItem[p] = HighlightedItem[p] = null;
-		IsEnabledCVar[p] = null;
+		PlayerStates[evt.PlayerNumber].Clear(hard: true);
 	}
 	
 	override void RenderOverlay(RenderEvent evt) {
 		if (automapactive || !playeringame[consoleplayer])
 			return;
 		
-		// https://forum.zdoom.org/viewtopic.php?f=122&t=61330#p1064117
-		let worldToClip = U2P_Matrix.worldToClip(evt.ViewPos, evt.ViewAngle, evt.ViewPitch, evt.ViewRoll, players[consoleplayer].FOV);
-		
-		if (PrevHighlightedItem[consoleplayer] && FadeTimer[consoleplayer])
-			DrawItemHighlight(
-				PrevHighlightedItem[consoleplayer],
-				(FadeTimer[consoleplayer] - evt.FracTic) / double(FADETICS),
-				evt,
-				worldToClip
-			);
-		
-		if (HighlightedItem[consoleplayer])
-			DrawItemHighlight(
-				HighlightedItem[consoleplayer],
-				1. - ((HighlightTimer[consoleplayer] - evt.FracTic) / double(FADETICS)),
-				evt,
-				worldToClip
-			);
-		
-		/*if (FailTimer[consoleplayer])
-			Screen.DrawText(
-				MsgFont, FAILURE_COLOR,
-				Screen.GetWidth() >> 4,
-				(Screen.GetHeight() >> 2) + (MsgFont.GetHeight() * 4),
-				"Cannot pick up this item",
-				DTA_Alpha, min(1., (FailTimer[consoleplayer] / float(FAILUREMESSAGETIME)) * 4.)
-			);*/
+		U2P_DrawContext dc;
+		dc.MsgFont = MsgFont;
+		dc.InitFromRenderEvent(evt);
+		PlayerStates[consoleplayer].Draw(dc);
+	}
+}
+
+struct U2P_DrawContext ui {
+	Actor Viewer;
+	Vector3 ViewPos, ViewAngles;
+	U2P_Matrix WorldToClip;
+	double FracTic;
+	float ViewerFOV;
+	Font MsgFont;
+	
+	void InitFromRenderEvent(RenderEvent evt) {
+		Viewer = evt.Camera;
+		ViewPos = evt.ViewPos;
+		ViewAngles = (evt.ViewAngle, evt.ViewPitch, evt.ViewRoll);
+		FracTic = evt.FracTic;
+		ViewerFOV = players[consoleplayer].FOV;
+		Init();
 	}
 	
-	private ui void DrawItemHighlight(Inventory item, double opacity, RenderEvent evt, U2P_Matrix worldToClip) {
-		let itemRelPos = evt.ViewPos + LevelLocals.Vec3Diff(evt.ViewPos, item.Pos);
+	// This needs to be called *after* ViewPos, ViewAngles, and ViewerFOV are set.
+	void Init() {
+		// https://forum.zdoom.org/viewtopic.php?f=122&t=61330#p1064117
+		WorldToClip = U2P_Matrix.worldToClip(ViewPos, ViewAngles.X, ViewAngles.Y, ViewAngles.Z, ViewerFOV);
+	}
+}
+
+struct U2P_PlayerState play {
+	const ItemsCompactSize = 3;
+	
+	Array<U2P_ItemHighlight> Items;
+	U2P_ItemHighlight FocusedItem;
+	PlayerInfo Player;
+	bool IsEnabled;
+	CVar IsEnabledCVar;
+	
+	void Clear(bool hard = false) {
+		IsEnabled = false;
+		IsEnabledCVar = null;
+		
+		if (hard) {
+			Items.Clear();
+			Items.ShrinkToFit();
+		}
+		else {
+			Items.Resize(min(Items.Size(), ItemsCompactSize));
+			
+			for (let i = 0, s = Items.Size(); i < s; i++)
+			if (Items[i])
+				Items[i].Clear();
+		}
+	}
+	
+	void FadeOutAll() {
+		for (let i = 0, s = Items.Size(); i < s; i++)
+		if (Items[i] && Items[i].InUse && !Items[i].FadingOut)
+			Items[i].FadeOut();
+	}
+	
+	void Init(PlayerInfo p) {
+		Clear();
+		Player = p;
+		IsEnabledCVar = CVar.GetCVar('usetopickup_enabled', p);
+	}
+	
+	void Tick() {
+		// Periodically clean up excess highlighters, to save memory.
+		if (!(gametic & 1023))
+		for (uint s = Items.Size(), i = s - 1; i >= 0; i--)
+		if (!Items[i] || (!Items[i].InUse && s > ItemsCompactSize)) {
+			Items.Delete(i);
+			s--;
+		}
+		
+		// Tick (remaining) highlighters that are in use.
+		for (uint i = 0, s = Items.Size(); i < s; i++)
+		if (Items[i] && Items[i].InUse)
+			Items[i].Tick();
+		
+		// Clear the focused item, if appropriate.
+		if (FocusedItem && (!FocusedItem.InUse || FocusedItem.FadingOut))
+			FocusedItem = null;
+		
+		// Update enabled status, PICKUP flag, etc.
+		let pp = Player.mo;
+		if (!IsEnabledCVar || IsEnabledCVar.GetBool()) {
+			IsEnabled = true;
+			if (pp)
+				pp.bPickup = false;
+		}
+		else if (IsEnabled) {
+			IsEnabled = false;
+			if (pp)
+				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
+			FocusedItem = null;
+			FadeOutAll();
+		}
+		
+		if (pp && IsEnabled && !(gametic & 3)) {
+			// How far away can this actor pick up items from?
+			double range;
+			if (usetopickup_fulluserange && pp is "PlayerPawn")
+				range = PlayerPawn(pp).UseRange;
+			else {
+				// TODO: Just check if the actor is touching?
+				let pitchVec = Actor.AngleToVector(pp.Pitch);
+				range = pp.Radius * abs(pitchVec.X) + pp.Height * abs(pitchVec.Y);
+			}
+			
+			// Look for the item that's closest to the center of the player actor's field of view.
+			Inventory origTarget = FocusedItem? FocusedItem.Target : null, bestTarget = null;
+			double bestViewDA = origTarget? ViewDAL(pp, origTarget) : 180;
+			
+			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
+			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial) {
+				let da = ViewDAL(pp, i.thing);
+				if (da < bestViewDA /*&& pp.IsVisible(i.thing, true)*/) {
+					bestViewDA = da;
+					bestTarget = Inventory(i.thing);
+				}
+			}
+			
+			if (FocusedItem && (bestViewDA >= 70. || !bestTarget || bestTarget != origTarget)) {
+				// If all items are really far from the center of the player's view, there aren't any in range at all, or we're switching focus targets, then we need to defocus the current FocusedItem.
+				FocusedItem.FadeOut();
+				FocusedItem = null;
+			}
+			
+			if (bestViewDA < 70. && bestTarget && !FocusedItem) {
+				Console.Printf("Focusing on %s", bestTarget.GetClassName());
+				// Got a new target to focus on.
+				// Find a free slot in the Items array, if any. Otherwise, allocate a new one.
+				uint i = 0, s = Items.Size();
+				
+				for (; i < s; i++)
+				if (!Items[i] || !Items[i].InUse)
+					break;
+				
+				if (i == s) {
+					// We've run out of available slots.
+					FocusedItem = new("U2P_ItemHighlight");
+					let slot = Items.Push(FocusedItem);
+					Console.Printf("Allocating new item highlighter in slot %d", slot);
+					if (slot > 31)
+						Object.ThrowAbortException("Too many (%d) highlighters!", slot);
+				}
+				else if (!Items[i]) {
+					// Found a null slot. Fill it.
+					FocusedItem = new("U2P_ItemHighlight");
+					Items[i] = FocusedItem;
+				}
+				else
+					// Found an existing, filled but unused slot.
+					FocusedItem = Items[i];
+				
+				// In any case, set it up.
+				FocusedItem.Target = bestTarget;
+				FocusedItem.FadeIn();
+				FocusedItem.Tick();
+			}
+		}
+		
+		// Check if the player wants and is allowed to pick up the focused item.
+		if (
+			IsEnabled &&
+			pp &&
+			(Player.cmd.buttons & BT_USE) &&
+			!Player.usedown &&
+			FocusedItem &&
+			FocusedItem.Target &&
+			!FocusedItem.FadingOut &&
+			!FocusedItem.Timer
+		) {
+			FocusedItem.Target.Touch(pp);
+		}
+	}
+	
+	// Computes how far the center of `to` is from the center of `from`'s field of view.
+	static double ViewDAL(Actor from, Actor to) {
+		let vecTo = from.Vec3To(to);
+		vecTo.Z += to.Height / 2.; // From the center of the actor.
+		let dirTo = vecTo.Unit();
+		Vector2 vda = (
+			Actor.deltaangle(from.AngleTo(to), from.Angle),
+			Actor.deltaangle(-asin(dirTo.Z), from.Pitch)
+		);
+		Console.Printf("ViewDAL(%s, %s) = %f ; to.Height=%f", from.GetClassName(), to.GetClassName(), vda.Length(), to.Height);
+		return vda.Length();
+	}
+	
+	ui void Draw(U2P_DrawContext dc) const {
+		for (uint i = 0, s = Items.Size(); i < s; i++)
+		if (Items[i] && Items[i].InUse)
+			Items[i].Draw(dc);
+	}
+}
+
+class U2P_ItemHighlight {
+	Inventory Target;
+	uint8 Timer, TimerMax;
+	bool FadingOut, InUse;
+	
+	// Record this information so that the highlight can fade out, even if the item disappears.
+	Vector3 TargetPos;
+	double TargetHeight, TargetRadius;
+	String TargetTag;
+	
+	void FadeIn(uint time = 13) {
+		if (!Target)
+			ThrowAbortException("FadeIn called with no target!");
+		
+		InUse = true;
+		
+		if (FadingOut || !Timer) {
+			Timer = TimerMax = time;
+			FadingOut = false;
+		}
+	}
+	
+	void FadeOut(uint time = 9) {
+		if (InUse && !FadingOut) {
+			Timer = TimerMax = time;
+			FadingOut = true;
+		}
+	}
+	
+	void Clear() {
+		InUse = false;
+		Target = null;
+		TargetTag = "";
+	}
+	
+	play void Tick() {
+		if (!InUse)
+			return;
+		
+		if (Timer > 0)
+			Timer--;
+		
+		if (FadingOut && !Timer) {
+			Clear();
+			return;
+		}
+		
+		if (Target) {
+			TargetPos = Target.Pos;
+			TargetTag = Target.GetTag(Target.GetClassName());
+			TargetHeight = Target.Height;
+			TargetRadius = Target.Radius;
+		}
+		else if (!FadingOut)
+			FadeOut();
+	}
+	
+	const TextColor_Description = Font.CR_WHITE;
+	const TextColor_KeyBind = Font.CR_GRAY;
+	const TextColor_PressToUseMsg = Font.CR_WHITE;
+	const BackgroundColor_KeyBind = Color(0xffffffe6);
+	
+	ui void Draw(U2P_DrawContext dc) const {
+		if (!InUse)
+			return;
+		
+		double opacity;
+		
+		if (Timer) {
+			opacity = TimerMax > 0? (Timer - dc.FracTic) / double(TimerMax) : 1.;
+			if (!FadingOut)
+				opacity = 1. - opacity;
+		}
+		else if (FadingOut)
+			opacity = 0;
+		else
+			opacity = 1;
+		
+		let itemRelPos = dc.ViewPos + LevelLocals.Vec3Diff(dc.ViewPos, TargetPos);
 		
 		let itemTopLeft = U2P_GlobalMaths.ndcToViewPort(
-			worldToClip.multiplyVector3(itemRelPos + (0, 0, item.Height)).asVector3()
+			dc.WorldToClip.multiplyVector3(itemRelPos + (0, 0, TargetHeight)).asVector3()
 		);
 		
 		let itemBottomRight = U2P_GlobalMaths.ndcToViewPort(
-			worldToClip.multiplyVector3(itemRelPos).asVector3()
+			dc.WorldToClip.multiplyVector3(itemRelPos).asVector3()
 		);
-		Screen.DrawLine(itemTopLeft.X, itemTopLeft.Y, itemBottomRight.X, itemBottomRight.Y, 0xff00ffff);
 		
-		let tag = item.GetTag(item.GetClassName());
+		Screen.DrawLine(itemTopLeft.X, itemTopLeft.Y, itemBottomRight.X, itemBottomRight.Y, 0xff00ffff);
 		
 		int origin[2];
 		origin[0] = Screen.GetWidth() >> 4;
 		origin[1] = Screen.GetHeight() >> 2;
-		let fontHeight = MsgFont.GetHeight() * CleanYFac;
+		let fontHeight = dc.MsgFont.GetHeight() * CleanYFac;
 		
 		Screen.DrawText(
-			MsgFont, HIGHLIGHT_COLOR,
+			dc.MsgFont, TextColor_Description,
 			origin[0], origin[1],
-			tag,
+			TargetTag,
 			DTA_Alpha, opacity,
 			DTA_CleanNoMove, true
 		);
@@ -207,11 +353,11 @@ class UseToPickup : StaticEventHandler {
 			[bindingKeys[0], bindingKeys[1]] = Bindings.GetKeysForCommand("+use");
 			keyName = KeyBindings.NameKeys(bindingKeys[0], bindingKeys[1]);
 		}
-		let keyNameWidth = MsgFont.StringWidth(keyName) * CleanXFac;
+		let keyNameWidth = dc.MsgFont.StringWidth(keyName) * CleanXFac;
 		let borderWidth = max(fontHeight >> 2, 1);
 		
 		Screen.Dim(
-			KEYBIND_BACKGROUND,
+			BackgroundColor_KeyBind,
 			opacity,
 			origin[0] - borderWidth,
 			origin[1] - borderWidth,
@@ -220,7 +366,7 @@ class UseToPickup : StaticEventHandler {
 		);
 		
 		Screen.DrawText(
-			MsgFont, KEYBIND_COLOR,
+			dc.MsgFont, TextColor_KeyBind,
 			origin[0], origin[1],
 			keyName,
 			DTA_Alpha, opacity,
@@ -230,70 +376,11 @@ class UseToPickup : StaticEventHandler {
 		origin[0] += keyNameWidth + (fontHeight >> 1);
 		
 		Screen.DrawText(
-			MsgFont, HIGHLIGHT_COLOR,
+			dc.MsgFont, TextColor_PressToUseMsg,
 			origin[0], origin[1],
 			"Pick up",
 			DTA_Alpha, opacity,
 			DTA_CleanNoMove, true
 		);
-	}
-}
-
-class InventoryFindingLineTracer : LineTracer {
-	Array<Actor> PotentiallyBlockingActors;
-	
-	play Inventory TraceToInventory(Actor from/*, double range*/) {
-		PotentiallyBlockingActors.Clear();
-		
-		let viewPos = from.Pos;
-		viewPos.Z = from.player? from.player.viewz : viewPos.Z + (from.Height / 2.);
-		//Console.Printf("Current pos: %f,%f,%f", viewPos.X, viewPos.Y, viewPos.Z);
-		
-		let viewDir = (cos(from.Pitch) * cos(from.Angle), cos(from.Pitch) * sin(from.Angle), -sin(from.Pitch));
-		//Console.Printf("Looking in: %f,%f,%f", viewDir.X, viewDir.Y, viewDir.Z);
-		
-		double range;
-		if (usetopickup_fulluserange && from is "PlayerPawn")
-			range = PlayerPawn(from).UseRange;
-		else
-			range = from.Radius * (1. - abs(viewDir.Z)) + from.Height * abs(viewDir.Z);
-		
-		if (Trace(viewPos, from.CurSector, viewDir, range, 0)) {
-			for (let i = 0, s = PotentiallyBlockingActors.Size(); i < s; i++)
-			if (
-				from != PotentiallyBlockingActors[i] &&
-				from.CanCollideWith(PotentiallyBlockingActors[i], true) &&
-				PotentiallyBlockingActors[i].CanCollideWith(from, false)
-			) {
-				//Console.Printf("Trace blocked by %s", PotentiallyBlockingActors[i].GetClassName());
-				return null;
-			}
-		}
-		
-		return Inventory(Results.HitActor);
-	}
-	
-	override ETraceStatus TraceCallback() {
-		switch (Results.HitType) {
-			case TRACE_HitFloor:
-			case TRACE_HitCeiling:
-			case TRACE_HitWall:
-				//Console.Printf("Trace hit %d; aborting", Results.HitType);
-				return TRACE_Abort;
-			
-			case TRACE_HitActor:
-				if (Results.HitActor is "Inventory" && Results.HitActor.bSpecial)
-					return TRACE_Stop;
-				else if (Results.HitActor.bSolid) {
-					//Console.Printf("Potentially blocking actor: %s", Results.HitActor.GetClassName());
-					PotentiallyBlockingActors.Push(Results.HitActor);
-					return TRACE_Skip;
-				}
-				
-				// intentional fall through
-			
-			default:
-				return TRACE_Skip;
-		}
 	}
 }
