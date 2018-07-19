@@ -100,8 +100,8 @@ struct U2P_PlayerState play {
 	
 	void FadeOutAll() {
 		for (let i = 0, s = Items.Size(); i < s; i++)
-		if (Items[i] && Items[i].InUse && !Items[i].FadingOut)
-			Items[i].FadeOut();
+		if (Items[i])
+			Items[i].Target = null;
 	}
 	
 	void Init(PlayerInfo p) {
@@ -121,11 +121,11 @@ struct U2P_PlayerState play {
 		
 		// Tick (remaining) highlighters that are in use.
 		for (uint i = 0, s = Items.Size(); i < s; i++)
-		if (Items[i] && Items[i].InUse)
+		if (Items[i])
 			Items[i].Tick();
 		
 		// Clear the focused item, if appropriate.
-		if (FocusedItem && (!FocusedItem.InUse || FocusedItem.FadingOut))
+		if (FocusedItem && (!FocusedItem.InUse || !FocusedItem.Target))
 			FocusedItem = null;
 		
 		// Update enabled status, PICKUP flag, etc.
@@ -155,7 +155,7 @@ struct U2P_PlayerState play {
 			}
 			
 			// Look for the item that's closest to the center of the player actor's field of view.
-			Inventory origTarget = FocusedItem? FocusedItem.Target : null, bestTarget = null;
+			Inventory origTarget = FocusedItem? FocusedItem.Target : null, bestTarget = origTarget;
 			double bestViewDA = origTarget? ViewDAL(pp, origTarget) : 180;
 			
 			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
@@ -169,12 +169,11 @@ struct U2P_PlayerState play {
 			
 			if (FocusedItem && (bestViewDA >= 70. || !bestTarget || bestTarget != origTarget)) {
 				// If all items are really far from the center of the player's view, there aren't any in range at all, or we're switching focus targets, then we need to defocus the current FocusedItem.
-				FocusedItem.FadeOut();
+				FocusedItem.Target = null;
 				FocusedItem = null;
 			}
 			
 			if (bestViewDA < 70. && bestTarget && !FocusedItem) {
-				Console.Printf("Focusing on %s", bestTarget.GetClassName());
 				// Got a new target to focus on.
 				// Find a free slot in the Items array, if any. Otherwise, allocate a new one.
 				uint i = 0, s = Items.Size();
@@ -187,9 +186,6 @@ struct U2P_PlayerState play {
 					// We've run out of available slots.
 					FocusedItem = new("U2P_ItemHighlight");
 					let slot = Items.Push(FocusedItem);
-					Console.Printf("Allocating new item highlighter in slot %d", slot);
-					if (slot > 31)
-						Object.ThrowAbortException("Too many (%d) highlighters!", slot);
 				}
 				else if (!Items[i]) {
 					// Found a null slot. Fill it.
@@ -202,7 +198,6 @@ struct U2P_PlayerState play {
 				
 				// In any case, set it up.
 				FocusedItem.Target = bestTarget;
-				FocusedItem.FadeIn();
 				FocusedItem.Tick();
 			}
 		}
@@ -215,8 +210,7 @@ struct U2P_PlayerState play {
 			!Player.usedown &&
 			FocusedItem &&
 			FocusedItem.Target &&
-			!FocusedItem.FadingOut &&
-			!FocusedItem.Timer
+			FocusedItem.Opacity == 1.
 		) {
 			FocusedItem.Target.Touch(pp);
 		}
@@ -225,13 +219,16 @@ struct U2P_PlayerState play {
 	// Computes how far the center of `to` is from the center of `from`'s field of view.
 	static double ViewDAL(Actor from, Actor to) {
 		let vecTo = from.Vec3To(to);
-		vecTo.Z += to.Height / 2.; // From the center of the actor.
+		
+		// Correct for the center of to, and the view height of from.
+		vecTo.Z += to.Height / 2.;
+		vecTo.Z -= from.player? from.player.viewheight : from.Height / 2;
+		
 		let dirTo = vecTo.Unit();
 		Vector2 vda = (
 			Actor.deltaangle(from.AngleTo(to), from.Angle),
 			Actor.deltaangle(-asin(dirTo.Z), from.Pitch)
 		);
-		Console.Printf("ViewDAL(%s, %s) = %f ; to.Height=%f", from.GetClassName(), to.GetClassName(), vda.Length(), to.Height);
 		return vda.Length();
 	}
 	
@@ -243,60 +240,53 @@ struct U2P_PlayerState play {
 }
 
 class U2P_ItemHighlight {
+	const FadeInRate = float(.14);
+	const FadeOutRate = float(-.07);
+	
 	Inventory Target;
-	uint8 Timer, TimerMax;
-	bool FadingOut, InUse;
+	float Opacity;
+	protected float OpacityIncrement;
+	bool InUse, Ready;
 	
 	// Record this information so that the highlight can fade out, even if the item disappears.
 	Vector3 TargetPos;
 	double TargetHeight, TargetRadius;
 	String TargetTag;
 	
-	void FadeIn(uint time = 13) {
-		if (!Target)
-			ThrowAbortException("FadeIn called with no target!");
-		
-		InUse = true;
-		
-		if (FadingOut || !Timer) {
-			Timer = TimerMax = time;
-			FadingOut = false;
-		}
-	}
-	
-	void FadeOut(uint time = 9) {
-		if (InUse && !FadingOut) {
-			Timer = TimerMax = time;
-			FadingOut = true;
-		}
-	}
-	
 	void Clear() {
-		InUse = false;
+		Ready = InUse = false;
 		Target = null;
 		TargetTag = "";
+		OpacityIncrement = Opacity = 0;
 	}
 	
 	play void Tick() {
-		if (!InUse)
-			return;
-		
-		if (Timer > 0)
-			Timer--;
-		
-		if (FadingOut && !Timer) {
-			Clear();
-			return;
-		}
-		
 		if (Target) {
+			if (Opacity < 1.)
+				OpacityIncrement = FadeInRate;
+			
 			TargetPos = Target.Pos;
 			TargetTag = Target.GetTag(Target.GetClassName());
 			TargetHeight = Target.Height;
 			TargetRadius = Target.Radius;
 		}
-		else if (!FadingOut)
-			FadeOut();
+		else {
+			if (Opacity > 0.)
+				OpacityIncrement = FadeOutRate;
+		}
+		
+		if (OpacityIncrement)
+			Opacity = clamp(Opacity + OpacityIncrement, 0., 1.);
+		
+		if (InUse && Opacity == 0. && !Target)
+			Clear();
+		else {
+			InUse = Target || Opacity > 0.;
+			Ready = Target && Opacity == 1.;
+			
+			if (Ready)
+				OpacityIncrement = 0;
+		}
 	}
 	
 	const TextColor_Description = Font.CR_WHITE;
@@ -307,18 +297,6 @@ class U2P_ItemHighlight {
 	ui void Draw(U2P_DrawContext dc) const {
 		if (!InUse)
 			return;
-		
-		double opacity;
-		
-		if (Timer) {
-			opacity = TimerMax > 0? (Timer - dc.FracTic) / double(TimerMax) : 1.;
-			if (!FadingOut)
-				opacity = 1. - opacity;
-		}
-		else if (FadingOut)
-			opacity = 0;
-		else
-			opacity = 1;
 		
 		let itemRelPos = dc.ViewPos + LevelLocals.Vec3Diff(dc.ViewPos, TargetPos);
 		
@@ -341,7 +319,7 @@ class U2P_ItemHighlight {
 			dc.MsgFont, TextColor_Description,
 			origin[0], origin[1],
 			TargetTag,
-			DTA_Alpha, opacity,
+			DTA_Alpha, Opacity,
 			DTA_CleanNoMove, true
 		);
 		
@@ -358,7 +336,7 @@ class U2P_ItemHighlight {
 		
 		Screen.Dim(
 			BackgroundColor_KeyBind,
-			opacity,
+			Opacity,
 			origin[0] - borderWidth,
 			origin[1] - borderWidth,
 			keyNameWidth + borderWidth + borderWidth,
@@ -369,7 +347,7 @@ class U2P_ItemHighlight {
 			dc.MsgFont, TextColor_KeyBind,
 			origin[0], origin[1],
 			keyName,
-			DTA_Alpha, opacity,
+			DTA_Alpha, Opacity,
 			DTA_CleanNoMove, true
 		);
 		
@@ -379,7 +357,7 @@ class U2P_ItemHighlight {
 			dc.MsgFont, TextColor_PressToUseMsg,
 			origin[0], origin[1],
 			"Pick up",
-			DTA_Alpha, opacity,
+			DTA_Alpha, Opacity,
 			DTA_CleanNoMove, true
 		);
 	}
