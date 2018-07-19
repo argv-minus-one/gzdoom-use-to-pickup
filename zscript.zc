@@ -154,26 +154,38 @@ struct U2P_PlayerState play {
 				range = pp.Radius * abs(pitchVec.X) + pp.Height * abs(pitchVec.Y);
 			}
 			
-			// Look for the item that's closest to the center of the player actor's field of view.
-			Inventory origTarget = FocusedItem? FocusedItem.Target : null, bestTarget = origTarget;
-			double bestViewDA = origTarget? ViewDAL(pp, origTarget) : 180;
+			Inventory origTarget, bestTarget;
+			double bestDFC = 180;
+			bool valid;
 			
-			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
-			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial) {
-				let da = ViewDAL(pp, i.thing);
-				if (da < bestViewDA /*&& pp.IsVisible(i.thing, true)*/) {
-					bestViewDA = da;
-					bestTarget = Inventory(i.thing);
+			// Check the current focused item.
+			if (FocusedItem) {
+				origTarget = FocusedItem.Target;
+				if (IsBetterTarget(pp, origTarget, range, bestDFC)) {
+					bestTarget = origTarget;
+				}
+				else {
+					// Current focused item is no longer valid, so defocus it.
+					FocusedItem.Target = null;
+					FocusedItem = null;
+					origTarget = null;
 				}
 			}
 			
-			if (FocusedItem && (bestViewDA >= 70. || !bestTarget || bestTarget != origTarget)) {
-				// If all items are really far from the center of the player's view, there aren't any in range at all, or we're switching focus targets, then we need to defocus the current FocusedItem.
+			// Look for the item that's closest to the center of the player actor's field of view.
+			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
+			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial) {
+				if (IsBetterTarget(pp, i.thing, range, bestDFC))
+					bestTarget = Inventory(i.thing);
+			}
+			
+			if (FocusedItem && (!bestTarget || bestTarget != origTarget)) {
+				// If we need to defocus the currently focused target, do that now.
 				FocusedItem.Target = null;
 				FocusedItem = null;
 			}
 			
-			if (bestViewDA < 70. && bestTarget && !FocusedItem) {
+			if (bestTarget && bestTarget != origTarget) {
 				// Got a new target to focus on.
 				// Find a free slot in the Items array, if any. Otherwise, allocate a new one.
 				uint i = 0, s = Items.Size();
@@ -216,20 +228,49 @@ struct U2P_PlayerState play {
 		}
 	}
 	
-	// Computes how far the center of `to` is from the center of `from`'s field of view.
-	static double ViewDAL(Actor from, Actor to) {
-		let vecTo = from.Vec3To(to);
+	/**
+	 * Checks whether a target is valid, and if so, updates bestDFC.
+	 *
+	 * The target is valid if:
+	 * • It is within the given range of the viewer.
+	 * • Its distance from the center of the viewer's field of view (that is, how far the viewer would need to look left/right/up/down to look straight at the target) is less than bestDFC.
+	 *
+	 * @param viewer The viewing actor.
+	 * @param target The actor that may or may not be a valid target.
+	 * @param range How far away the target may be.
+	 * @param bestDFC Distance-from-center of currently focused target. This is an out parameter; if the given target is valid, bestDFC will be updated with the DFC of the given target.
+	 * @return true if the target is valid; false otherwise.
+	 */
+	static bool IsBetterTarget(Actor viewer, Actor target, double range, in out double bestDFC) {
+		if (
+			// Does it exist at all?
+			!target ||
+			// Is it in range?
+			viewer.Distance3D(target) > range
+		)
+			// Nope.
+			return false;
 		
-		// Correct for the center of to, and the view height of from.
-		vecTo.Z += to.Height / 2.;
-		vecTo.Z -= from.player? from.player.viewheight : from.Height / 2;
+		let vecTo = viewer.Vec3To(target);
+		
+		// Correct for the center of target, and the view height of viewer.
+		vecTo.Z += target.Height / 2.;
+		vecTo.Z -= viewer.player? viewer.player.viewheight : viewer.Height / 2;
 		
 		let dirTo = vecTo.Unit();
-		Vector2 vda = (
-			Actor.deltaangle(from.AngleTo(to), from.Angle),
-			Actor.deltaangle(-asin(dirTo.Z), from.Pitch)
+		Vector2 viewDA = (
+			Actor.deltaangle(viewer.AngleTo(target), viewer.Angle),
+			Actor.deltaangle(-asin(dirTo.Z), viewer.Pitch)
 		);
-		return vda.Length();
+		let dfc = viewDA.Length();
+		
+		// Is it within acceptable angles?
+		if (dfc < bestDFC) {
+			bestDFC = dfc;
+			return true;
+		}
+		else
+			return false;
 	}
 	
 	ui void Draw(U2P_DrawContext dc) const {
