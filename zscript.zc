@@ -339,67 +339,57 @@ class U2P_ItemHighlight {
 		if (!InUse)
 			return;
 		
-		let itemRelPos = dc.ViewPos + LevelLocals.Vec3Diff(dc.ViewPos, TargetPos);
+		// Top left, bottom right
+		Vector2 screenCoord[2];
 		
-		let itemTopLeft = U2P_GlobalMaths.ndcToViewPort(
-			dc.WorldToClip.multiplyVector3(itemRelPos + (0, 0, TargetHeight)).asVector3()
-		);
-		
-		let itemBottomRight = U2P_GlobalMaths.ndcToViewPort(
-			dc.WorldToClip.multiplyVector3(itemRelPos).asVector3()
-		);
-		
-		Screen.DrawLine(itemTopLeft.X, itemTopLeft.Y, itemBottomRight.X, itemBottomRight.Y, 0xff00ffff);
-		
-		int origin[2];
-		origin[0] = Screen.GetWidth() >> 4;
-		origin[1] = Screen.GetHeight() >> 2;
-		let fontHeight = dc.MsgFont.GetHeight() * CleanYFac;
-		
-		Screen.DrawText(
-			dc.MsgFont, TextColor_Description,
-			origin[0], origin[1],
-			TargetTag,
-			DTA_Alpha, Opacity,
-			DTA_CleanNoMove, true
-		);
-		
-		origin[1] += fontHeight * 9 / 5;
-		
-		String keyName;
-		{
-			int bindingKeys[2];
-			[bindingKeys[0], bindingKeys[1]] = Bindings.GetKeysForCommand("+use");
-			keyName = KeyBindings.NameKeys(bindingKeys[0], bindingKeys[1]);
+		// Adapted from Pixel Eater's Fill Spectre.
+		for (let corner = 0; corner < 4; corner++) {
+			// Compute one corner at a time.
+			// The corner numbers are: 0 = top left, 1 = top right, 2 = bottom left, 3 = bottom right
+			let vert = dc.ViewPos + LevelLocals.Vec3Diff(
+				dc.ViewPos,
+				TargetPos + (
+					// `corner & 1` is only true for the top right and bottom right corners.
+					sin(dc.Viewer.Angle) * TargetRadius * (corner & 1? 1. : -1.),
+					cos(dc.Viewer.Angle) * TargetRadius * (corner & 1? -1. : 1.),
+					// `corner & 2` is only true for the bottom left and bottom right corners.
+					corner & 2? 0 : TargetHeight
+				)
+			);
+			
+			let ndc = dc.WorldToClip.multiplyVector3(vert).asVector3();
+			
+			if (ndc.Z > 1. || ndc.Z < -1.)
+				// Out of camera view. Don't draw anything.
+				// This is the reason why we store all four coordinates in the screenCoord and then loop over them again: if *any* of the coordinates are out of view, we need to not draw anything!
+				return;
+			
+			let cornerCoord = U2P_GlobalMaths.ndcToViewPort(ndc);
+			
+			// That projects the corners of the sprite on the screen. Now, make a rectangle from the coordinates.
+			if (!corner) {
+				// For the first corner, just use that coordinate to start.
+				screenCoord[0] = screenCoord[1] = cornerCoord;
+			}
+			else {
+				// From there, stretch out the rectangle to fit the thing.
+				screenCoord[0].X = min(screenCoord[0].X, cornerCoord.X);
+				screenCoord[0].Y = min(screenCoord[0].Y, cornerCoord.Y);
+				screenCoord[1].X = max(screenCoord[1].X, cornerCoord.X);
+				screenCoord[1].Y = max(screenCoord[1].Y, cornerCoord.Y);
+			}
 		}
-		let keyNameWidth = dc.MsgFont.StringWidth(keyName) * CleanXFac;
-		let borderWidth = max(fontHeight >> 2, 1);
 		
-		Screen.Dim(
-			BackgroundColor_KeyBind,
-			Opacity,
-			origin[0] - borderWidth,
-			origin[1] - borderWidth,
-			keyNameWidth + borderWidth + borderWidth,
-			fontHeight + borderWidth + borderWidth
-		);
-		
-		Screen.DrawText(
-			dc.MsgFont, TextColor_KeyBind,
-			origin[0], origin[1],
-			keyName,
-			DTA_Alpha, Opacity,
-			DTA_CleanNoMove, true
-		);
-		
-		origin[0] += keyNameWidth + (fontHeight >> 1);
-		
-		Screen.DrawText(
-			dc.MsgFont, TextColor_PressToUseMsg,
-			origin[0], origin[1],
-			"Pick up",
-			DTA_Alpha, Opacity,
-			DTA_CleanNoMove, true
-		);
+		for (let corner = 0; corner < 4; corner++) {
+			Screen.DrawText(
+				dc.MsgFont, TextColor_Description,
+				screenCoord[corner & 1].X,
+				// (2 & 2) = 2, but we need 0 or 1. !! gives us that.
+				screenCoord[!!(corner & 2)].Y,
+				String.Format("%d", corner),
+				DTA_Alpha, Opacity,
+				DTA_CleanNoMove, true
+			);
+		}
 	}
 }
