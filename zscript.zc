@@ -6,35 +6,32 @@ Version "3.4"
 class UseToPickup : StaticEventHandler {
 	U2P_PlayerState PlayerStates[MAXPLAYERS];
 	Font MsgFont;
+	private ThinkerIterator Drawables;
 	
 	override void OnRegister() {
 		MsgFont = Font.FindFont('SMALLFONT');
-	}
-	
-	override void WorldTick() {
-		for (let p = 0; p < MAXPLAYERS; p++)
-		if (playeringame[p]) {
-			PlayerStates[p].Tick();
-			
-			let pp = players[p].mo;
-			if (!pp || pp.Health <= 0) {
-				PlayerStates[p].FadeOutAll();
-				continue;
-			}
-		}
+		Drawables = ThinkerIterator.Create('U2P_ItemHighlight');
 	}
 	
 	override void PlayerEntered(PlayerEvent evt) {
 		let p = evt.PlayerNumber;
+		if (!PlayerStates[p])
+			PlayerStates[p] = new("U2P_PlayerState");
 		PlayerStates[p].Init(players[p]);
 	}
 	
 	override void PlayerRespawned(PlayerEvent evt) {
-		PlayerStates[evt.PlayerNumber].Clear();
+		let p = evt.PlayerNumber;
+		if (PlayerStates[p])
+			PlayerStates[p].ClearFocus();
 	}
 	
 	override void PlayerDisconnected(PlayerEvent evt) {
-		PlayerStates[evt.PlayerNumber].Clear(hard: true);
+		let p = evt.PlayerNumber;
+		if (PlayerStates[p]) {
+			PlayerStates[p].Destroy();
+			PlayerStates[p] = null;
+		}
 	}
 	
 	override void RenderOverlay(RenderEvent evt) {
@@ -44,7 +41,10 @@ class UseToPickup : StaticEventHandler {
 		U2P_DrawContext dc;
 		dc.MsgFont = MsgFont;
 		dc.InitFromRenderEvent(evt);
-		PlayerStates[consoleplayer].Draw(dc);
+		
+		Drawables.Reinit();
+		for (let drawable = Drawables.Next(); drawable; drawable = Drawables.Next())
+			U2P_ItemHighlight(drawable).Draw(dc);
 	}
 }
 
@@ -72,65 +72,38 @@ struct U2P_DrawContext ui {
 	}
 }
 
-struct U2P_PlayerState play {
+class U2P_PlayerState : Thinker {
 	const ItemsCompactSize = 3;
+	const HighlightFOV = 40.;
 	
-	Array<U2P_ItemHighlight> Items;
 	U2P_ItemHighlight FocusedItem;
 	PlayerInfo Player;
-	bool IsEnabled;
-	CVar IsEnabledCVar;
+	transient bool IsEnabled;
+	transient CVar IsEnabledCVar;
 	
-	void Clear(bool hard = false) {
-		IsEnabled = false;
-		IsEnabledCVar = null;
-		
-		if (hard) {
-			Items.Clear();
-			Items.ShrinkToFit();
-		}
-		else {
-			Items.Resize(min(Items.Size(), ItemsCompactSize));
-			
-			for (let i = 0, s = Items.Size(); i < s; i++)
-			if (Items[i])
-				Items[i].Clear();
+	U2P_PlayerState Init(PlayerInfo player) {
+		self.Player = player;
+		return self;
+	}
+	
+	void ClearFocus() {
+		if (FocusedItem) {
+			FocusedItem.FadeOut();
+			FocusedItem = null;
 		}
 	}
 	
-	void FadeOutAll() {
-		for (let i = 0, s = Items.Size(); i < s; i++)
-		if (Items[i])
-			Items[i].Target = null;
-	}
-	
-	void Init(PlayerInfo p) {
-		Clear();
-		Player = p;
-		IsEnabledCVar = CVar.GetCVar('usetopickup_enabled', p);
-	}
-	
-	void Tick() {
-		// Periodically clean up excess highlighters, to save memory.
-		if (!(gametic & 1023))
-		for (uint s = Items.Size(), i = s - 1; i >= 0; i--)
-		if (!Items[i] || (!Items[i].InUse && s > ItemsCompactSize)) {
-			Items.Delete(i);
-			s--;
-		}
-		
-		// Tick (remaining) highlighters that are in use.
-		for (uint i = 0, s = Items.Size(); i < s; i++)
-		if (Items[i])
-			Items[i].Tick();
-		
+	override void Tick() {
 		// Clear the focused item, if appropriate.
-		if (FocusedItem && (!FocusedItem.InUse || !FocusedItem.Target))
+		if (FocusedItem && !FocusedItem.Target)
 			FocusedItem = null;
 		
 		// Update enabled status, PICKUP flag, etc.
+		if (!IsEnabledCVar)
+			IsEnabledCVar = CVar.GetCVar('usetopickup_enabled', Player);
+		
 		let pp = Player.mo;
-		if (!IsEnabledCVar || IsEnabledCVar.GetBool()) {
+		if (IsEnabledCVar.GetBool()) {
 			IsEnabled = true;
 			if (pp)
 				pp.bPickup = false;
@@ -139,8 +112,7 @@ struct U2P_PlayerState play {
 			IsEnabled = false;
 			if (pp)
 				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
-			FocusedItem = null;
-			FadeOutAll();
+			ClearFocus();
 		}
 		
 		if (pp && IsEnabled && !(gametic & 3)) {
@@ -154,77 +126,49 @@ struct U2P_PlayerState play {
 				range = pp.Radius * abs(pitchVec.X) + pp.Height * abs(pitchVec.Y);
 			}
 			
-			Inventory origTarget, bestTarget;
-			double bestDFC = 180;
+			Inventory origTarget = null, bestTarget = null;
+			double bestDFC = HighlightFOV;
 			bool valid;
 			
 			// Check the current focused item.
 			if (FocusedItem) {
 				origTarget = FocusedItem.Target;
-				if (IsBetterTarget(pp, origTarget, range, bestDFC)) {
+				if (IsBetterTarget(pp, origTarget, range, bestDFC))
 					bestTarget = origTarget;
-				}
-				else {
-					// Current focused item is no longer valid, so defocus it.
-					FocusedItem.Target = null;
-					FocusedItem = null;
-					origTarget = null;
-				}
 			}
 			
 			// Look for the item that's closest to the center of the player actor's field of view.
 			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
-			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial) {
-				if (IsBetterTarget(pp, i.thing, range, bestDFC))
-					bestTarget = Inventory(i.thing);
-			}
+			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial && IsBetterTarget(pp, i.thing, range, bestDFC))
+				bestTarget = Inventory(i.thing);
 			
 			if (FocusedItem && (!bestTarget || bestTarget != origTarget)) {
-				// If we need to defocus the currently focused target, do that now.
-				FocusedItem.Target = null;
-				FocusedItem = null;
+				// We're now focusing on something other than what's currently focused (either nothing or a different actor), so clear the current focus.
+				ClearFocus();
 			}
 			
-			if (bestTarget && bestTarget != origTarget) {
+			if (bestTarget && bestTarget != origTarget)
 				// Got a new target to focus on.
-				// Find a free slot in the Items array, if any. Otherwise, allocate a new one.
-				uint i = 0, s = Items.Size();
-				
-				for (; i < s; i++)
-				if (!Items[i] || !Items[i].InUse)
-					break;
-				
-				if (i == s) {
-					// We've run out of available slots.
-					FocusedItem = new("U2P_ItemHighlight");
-					let slot = Items.Push(FocusedItem);
-				}
-				else if (!Items[i]) {
-					// Found a null slot. Fill it.
-					FocusedItem = new("U2P_ItemHighlight");
-					Items[i] = FocusedItem;
-				}
-				else
-					// Found an existing, filled but unused slot.
-					FocusedItem = Items[i];
-				
-				// In any case, set it up.
-				FocusedItem.Target = bestTarget;
-				FocusedItem.Tick();
-			}
+				FocusedItem = new("U2P_ItemHighlight").Init(Player, bestTarget);
 		}
 		
-		// Check if the player wants and is allowed to pick up the focused item.
+		// Check if the player is allowed to pick up the focused item.
 		if (
 			IsEnabled &&
 			pp &&
-			(Player.cmd.buttons & BT_USE) &&
-			!(Player.oldbuttons & BT_USE) &&
 			FocusedItem &&
 			FocusedItem.Target &&
-			FocusedItem.Opacity == 1.
+			FocusedItem.Ready
 		) {
-			FocusedItem.Target.Touch(pp);
+			// If so, then block the usual effects of the use button.
+			Player.usedown = true;
+			
+			// Check if the player wants to pick up the item.
+			if (
+				(Player.cmd.buttons & BT_USE) &&
+				!(Player.oldbuttons & BT_USE)
+			)
+				FocusedItem.Target.Touch(pp);
 		}
 	}
 	
@@ -272,62 +216,82 @@ struct U2P_PlayerState play {
 		else
 			return false;
 	}
-	
-	ui void Draw(U2P_DrawContext dc) const {
-		for (uint i = 0, s = Items.Size(); i < s; i++)
-		if (Items[i] && Items[i].InUse)
-			Items[i].Draw(dc);
-	}
 }
 
-class U2P_ItemHighlight {
+class U2P_ItemHighlight : Thinker {
 	const FadeInRate = float(.14);
 	const FadeOutRate = float(-.07);
+	const FullOpacity = float(1.);
 	
 	Inventory Target;
+	PlayerInfo Player;
 	float Opacity;
 	protected float OpacityIncrement;
-	bool InUse, Ready;
+	bool Ready;
 	
 	// Record this information so that the highlight can fade out, even if the item disappears.
 	Vector3 TargetPos;
 	double TargetHeight, TargetRadius;
 	String TargetTag;
 	
-	void Clear() {
-		Ready = InUse = false;
-		Target = null;
-		TargetTag = "";
-		OpacityIncrement = Opacity = 0;
+	U2P_ItemHighlight Init(PlayerInfo player, Inventory target) {
+		self.Player = player;
+		self.Target = target;
+		OpacityIncrement = FadeInRate;
+		return self;
 	}
 	
-	play void Tick() {
-		if (Target) {
-			if (Opacity < 1.)
-				OpacityIncrement = FadeInRate;
+	override void Tick() {
+		if (!Player) {
+			Destroy();
+			return;
+		}
+		
+		switch (Player.playerstate) {
+			case PST_DEAD:
+			case PST_REBORN:
+				// If player is dead, fade out.
+				Target = null;
+				break;
 			
+			case PST_ENTER:
+			case PST_GONE:
+				// If player isn't present at all, then this object is no longer valid, so bail.
+				Destroy();
+				return;
+			
+			// Otherwise, carry on.
+		}
+		
+		if (Target) {
 			TargetPos = Target.Pos;
 			TargetTag = Target.GetTag(Target.GetClassName());
 			TargetHeight = Target.Height;
 			TargetRadius = Target.Radius;
 		}
 		else {
-			if (Opacity > 0.)
-				OpacityIncrement = FadeOutRate;
+			// Target lost. Fade out.
+			FadeOut();
 		}
 		
 		if (OpacityIncrement)
-			Opacity = clamp(Opacity + OpacityIncrement, 0., 1.);
+			Opacity = clamp(Opacity + OpacityIncrement, 0., FullOpacity);
 		
-		if (InUse && Opacity == 0. && !Target)
-			Clear();
-		else {
-			InUse = Target || Opacity > 0.;
-			Ready = Target && Opacity == 1.;
-			
-			if (Ready)
-				OpacityIncrement = 0;
+		if (Opacity == 0.) {
+			// Fully faded out.
+			Destroy();
+			return;
 		}
+		
+		Ready = Opacity == FullOpacity;
+		if (Ready)
+			// Fully visible.
+			OpacityIncrement = 0;
+	}
+	
+	void FadeOut() {
+		if (OpacityIncrement >= 0.)
+			OpacityIncrement = FadeOutRate;
 	}
 	
 	const TextColor_Description = Font.CR_WHITE;
@@ -336,8 +300,17 @@ class U2P_ItemHighlight {
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
 	
 	ui void Draw(U2P_DrawContext dc) const {
-		if (!InUse)
+		// Don't actually draw anything for anyone other than the console player.
+		// Note that these highlighters have playsim effects too, so they still exist for other players; they just aren't drawn.
+		if (Player != players[consoleplayer])
 			return;
+		
+		switch (Player.playerstate) {
+			case PST_ENTER:
+			case PST_GONE:
+				// Similarly, if the owning player isn't in the game, don't draw anything.
+				return;
+		}
 		
 		// Top left, bottom right
 		Vector2 screenCoord[2];
