@@ -159,18 +159,19 @@ struct U2P_PlayerState play {
 			bool valid;
 			
 			// Check the current focused item.
-			if (FocusedItem) {
+			/*if (FocusedItem) {
 				origTarget = FocusedItem.Target;
 				if (IsBetterTarget(pp, origTarget, range, bestDFC)) {
 					bestTarget = origTarget;
 				}
-				else {
+				else {*/
 					// Current focused item is no longer valid, so defocus it.
-					FocusedItem.Target = null;
+					if (FocusedItem)
+						FocusedItem.Target = null;
 					FocusedItem = null;
 					origTarget = null;
-				}
-			}
+				/*}
+			}*/
 			
 			// Look for the item that's closest to the center of the player actor's field of view.
 			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
@@ -179,11 +180,11 @@ struct U2P_PlayerState play {
 					bestTarget = Inventory(i.thing);
 			}
 			
-			if (FocusedItem && (!bestTarget || bestTarget != origTarget)) {
+			/*if (FocusedItem && (!bestTarget || bestTarget != origTarget)) {
 				// If we need to defocus the currently focused target, do that now.
 				FocusedItem.Target = null;
 				FocusedItem = null;
-			}
+			}*/
 			
 			if (bestTarget && bestTarget != origTarget) {
 				// Got a new target to focus on.
