@@ -368,6 +368,15 @@ class U2P_ItemHighlight : Thinker {
 		
 		let texSize = TexMan.GetScaledSize(BracketTex) * (min(Screen.GetWidth(), Screen.GetHeight()) / ScaleBase);
 		
+		// Make sure the brackets don't overlap.
+		{
+			let centerCoord = screenCoord[0] + ((screenCoord[1] - screenCoord[0]) * .5);
+			screenCoord[0].X = min(screenCoord[0].X, centerCoord.X - texSize.X);
+			screenCoord[0].Y = min(screenCoord[0].Y, centerCoord.Y - texSize.Y);
+			screenCoord[1].X = max(screenCoord[1].X, centerCoord.X + texSize.X);
+			screenCoord[1].Y = max(screenCoord[1].Y, centerCoord.Y + texSize.Y);
+		}
+		
 		for (let corner = 0; corner < 4; corner++) {
 			Screen.DrawTexture(
 				BracketTex, false,
