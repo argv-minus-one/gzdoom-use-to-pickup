@@ -200,6 +200,7 @@ class U2P_PlayerState : Thinker {
 		
 		let targetPos = target.Pos;
 		targetPos.Z += target.Height / 2.;
+		targetPos.Z += target.GetBobOffset();
 		
 		let vecTo = level.Vec3Diff(viewPos, targetPos);
 		let distTo = vecTo.Length();
@@ -338,6 +339,7 @@ class U2P_ItemHighlight : Thinker {
 		
 		if (Target) {
 			TargetPos = Target.Pos;
+			TargetPos.Z += Target.GetBobOffset();
 			TargetTag = Target.GetTag(Target.GetClassName());
 			TargetHeight = Target.Height;
 			TargetRadius = Target.Radius;
