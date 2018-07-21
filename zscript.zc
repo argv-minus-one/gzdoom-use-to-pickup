@@ -312,6 +312,10 @@ class U2P_ItemHighlight : Thinker {
 		if (Player != players[consoleplayer])
 			return;
 		
+		// Don't bother drawing anything if opacity is zero!
+		if (Opacity <= 0.)
+			return;
+		
 		switch (Player.playerstate) {
 			case PST_ENTER:
 			case PST_GONE:
