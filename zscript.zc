@@ -17,7 +17,7 @@ class UseToPickup : StaticEventHandler {
 		let p = evt.PlayerNumber;
 		if (!PlayerStates[p])
 			PlayerStates[p] = new("U2P_PlayerState");
-		PlayerStates[p].Init(players[p]);
+		PlayerStates[p].Init(players[p], p);
 	}
 	
 	override void PlayerRespawned(PlayerEvent evt) {
@@ -78,11 +78,21 @@ class U2P_PlayerState : Thinker {
 	
 	U2P_ItemHighlight FocusedItem;
 	PlayerInfo Player;
+	uint8 SelectPhase;
 	transient bool IsEnabled;
 	transient CVar IsEnabledCVar;
 	
-	U2P_PlayerState Init(PlayerInfo player) {
+	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
 		self.Player = player;
+		
+		// Target selection runs every 4 tics. In multiplayer with a lot of players, this could result in stuttering, from target selection happening for all of them at the same time (every fourth tic). So, we offset which of every fourth tic to perform target selection on, based on the player number. For example:
+		// Player 0 will select targets on tic 0, 3, 6, …
+		// Player 1 will select targets on tic 1, 4, 7, …
+		// Player 2 will select targets on tic 2, 5, 8, …
+		// Player 4 will select targets on tic 0, 3, 6, …
+		// Player 5 will select targets on tic 1, 4, 7, …
+		SelectPhase = playerNum & 3;
+		
 		return self;
 	}
 	
@@ -116,7 +126,7 @@ class U2P_PlayerState : Thinker {
 			ClearFocus();
 		}
 		
-		if (pp && IsEnabled && !(gametic & 3)) {
+		if (pp && IsEnabled && !((gametic + SelectPhase) & 3)) {
 			Inventory origTarget = null, bestTarget = null;
 			double bestDFC = HighlightFOV;
 			bool valid;
