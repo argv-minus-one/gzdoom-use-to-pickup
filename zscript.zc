@@ -299,7 +299,7 @@ class U2P_ItemHighlight : Thinker {
 	const TextColor_PressToUseMsg = Font.CR_WHITE;
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
 	const BracketColor = Color(0xffffffff);
-	const BracketTexName = "U2P_BRKT";
+	const BracketTexName = "UseToPickup/bracket.png";
 	private transient ui TextureID BracketTex;
 	
 	// Scale the brackets such that they're drawn 1:1 on a screen whose min(width,height) is this many pixels.
