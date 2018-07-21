@@ -14,7 +14,7 @@ There will probably be conflicts with some other mods. Be sure to open an issue 
 
 ## Options
 
-This mod adds a submenu to the bottom of the Options menu. There are two settings:
+This mod adds a submenu to the bottom of the Options menu. There are three settings:
 
 ### Allow full Use range
 
@@ -29,6 +29,10 @@ This is a server-side option. If in a multiplayer game, the setting of the serve
 Toggles on/off the functionality of this mod.
 
 This is a client-side option. In multiplayer games, players may independently decide whether they want to use this, or use the vanilla pickup behavior.
+
+### Toggle Enabled
+
+A key binding for toggling the mod on/off. This also appears in the “Customize Controls” menu.
 
 ## Credits
 

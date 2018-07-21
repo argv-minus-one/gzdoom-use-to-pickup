@@ -1,0 +1,2 @@
+addkeysection "$U2P_KeyBindMenu_Heading" "UseToPickup"
+addmenukey "$U2P_KeyBindMenu_EnableToggle" "toggle usetopickup_enabled"
