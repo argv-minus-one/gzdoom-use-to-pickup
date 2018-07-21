@@ -298,8 +298,14 @@ class U2P_ItemHighlight : Thinker {
 	const TextColor_KeyBind = Font.CR_GRAY;
 	const TextColor_PressToUseMsg = Font.CR_WHITE;
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
+	const BracketColor = Color(0xffffffff);
+	const BracketTexName = "U2P_BRKT";
+	private transient ui TextureID BracketTex;
 	
-	ui void Draw(U2P_DrawContext dc) const {
+	// Scale the brackets as though the screen were this many pixels wide and tall.
+	const ScaleBase = 200.;
+	
+	ui void Draw(U2P_DrawContext dc) {
 		// Don't actually draw anything for anyone other than the console player.
 		// Note that these highlighters have playsim effects too, so they still exist for other players; they just aren't drawn.
 		if (Player != players[consoleplayer])
@@ -310,6 +316,13 @@ class U2P_ItemHighlight : Thinker {
 			case PST_GONE:
 				// Similarly, if the owning player isn't in the game, don't draw anything.
 				return;
+		}
+		
+		// Look up the bracket texture, if needed.
+		if (!BracketTex.IsValid()) {
+			BracketTex = TexMan.CheckForTexture(BracketTexName, TexMan.Type_Any);
+			if (!BracketTex.IsValid())
+				ThrowAbortException("%s can't find required texture %s!", GetClassName(), BracketTexName);
 		}
 		
 		// Top left, bottom right
@@ -353,15 +366,20 @@ class U2P_ItemHighlight : Thinker {
 			}
 		}
 		
+		let texSize = TexMan.GetScaledSize(BracketTex) * (min(Screen.GetWidth(), Screen.GetHeight()) / ScaleBase);
+		
 		for (let corner = 0; corner < 4; corner++) {
-			Screen.DrawText(
-				dc.MsgFont, TextColor_Description,
-				screenCoord[corner & 1].X,
+			// Draw vertical part
+			Screen.DrawTexture(
+				BracketTex, false,
+				screenCoord[corner & 1].X - (corner & 1? texSize.X : 0.),
 				// (2 & 2) = 2, but we need 0 or 1. !! gives us that.
-				screenCoord[!!(corner & 2)].Y,
-				String.Format("%d", corner),
+				screenCoord[!!(corner & 2)].Y - (corner & 2? texSize.Y : 0),
 				DTA_Alpha, Opacity,
-				DTA_CleanNoMove, true
+				DTA_FlipX, corner & 1,
+				DTA_FlipY, !!(corner & 2),
+				DTA_DestWidthF, texSize.X,
+				DTA_DestHeightF, texSize.Y
 			);
 		}
 	}

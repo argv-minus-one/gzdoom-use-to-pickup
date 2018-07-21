@@ -1,0 +1,5 @@
+graphic U2P_BRKT, 200, 200 {
+	XScale 20
+	YScale 20
+	graphic U2P_BRKT, 0, 0
+}
