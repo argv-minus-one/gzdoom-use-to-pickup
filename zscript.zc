@@ -134,13 +134,13 @@ class U2P_PlayerState : Thinker {
 			// Check the current focused item.
 			if (FocusedItem) {
 				origTarget = FocusedItem.Target;
-				if (IsBetterTarget(pp, origTarget, range, bestDFC))
+				if (CheckTarget(pp, origTarget, range, bestDFC))
 					bestTarget = origTarget;
 			}
 			
 			// Look for the item that's closest to the center of the player actor's field of view.
 			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
-			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial && IsBetterTarget(pp, i.thing, range, bestDFC))
+			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial && CheckTarget(pp, i.thing, range, bestDFC))
 				bestTarget = Inventory(i.thing);
 			
 			if (FocusedItem && (!bestTarget || bestTarget != origTarget)) {
@@ -186,7 +186,7 @@ class U2P_PlayerState : Thinker {
 	 * @param bestDFC Distance-from-center of currently focused target. This is an out parameter; if the given target is valid, bestDFC will be updated with the DFC of the given target.
 	 * @return true if the target is valid; false otherwise.
 	 */
-	static bool IsBetterTarget(Actor viewer, Actor target, double range, in out double bestDFC) {
+	static bool CheckTarget(Actor viewer, Actor target, double range, in out double bestDFC) {
 		if (
 			// Does it exist at all?
 			!target ||
