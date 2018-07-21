@@ -74,7 +74,7 @@ struct U2P_DrawContext ui {
 
 class U2P_PlayerState : Thinker {
 	const ItemsCompactSize = 3;
-	const HighlightFOV = 40.;
+	const HighlightFOV = 25.;
 	
 	U2P_ItemHighlight FocusedItem;
 	PlayerInfo Player;
