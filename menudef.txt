@@ -1,0 +1,15 @@
+AddOptionMenu "OptionsMenu" {
+	Submenu "$U2P_OptionsMenu_Title", "UseToPickupOptions"
+}
+
+OptionMenu "UseToPickupOptions" {
+	Title "$U2P_OptionsMenu_Title"
+	
+	StaticText "$NETMNU_HOSTOPTIONS", "Gold"
+	StaticText ""
+	Option "$U2P_OptionsMenu_FullUseRange", "usetopickup_fulluserange", "YesNo"
+	StaticText ""
+	StaticText "$OPTMNU_PLAYER", "Gold"
+	StaticText ""
+	Option "$U2P_OptionsMenu_Enable", "usetopickup_enabled", "YesNo"
+}

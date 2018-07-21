@@ -1,2 +1,5 @@
 [enu default]
 U2P_PickUpText = "Pick up";
+U2P_OptionsMenu_Title = "Use To Pickup Options";
+U2P_OptionsMenu_Enable = "Enable Mod";
+U2P_OptionsMenu_FullUseRange = "Allow full Use range";
