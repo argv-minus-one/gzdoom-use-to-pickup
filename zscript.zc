@@ -302,8 +302,8 @@ class U2P_ItemHighlight : Thinker {
 	const BracketTexName = "U2P_BRKT";
 	private transient ui TextureID BracketTex;
 	
-	// Scale the brackets as though the screen were this many pixels wide and tall.
-	const ScaleBase = 200.;
+	// Scale the brackets such that they're drawn 1:1 on a screen whose min(width,height) is this many pixels.
+	const ScaleBase = 4000.;
 	
 	ui void Draw(U2P_DrawContext dc) {
 		// Don't actually draw anything for anyone other than the console player.
