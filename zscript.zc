@@ -241,58 +241,14 @@ class U2P_PlayerState : Thinker {
 			return false;
 		
 		// Is there anything in the way?
-		let trace = new("U2P_CheckAnythingBetween");
-		trace.TracingFrom = viewer;
-		trace.TracingTo = target;
-		if (!trace.Check(viewPos, viewer.CurSector, dirTo, distTo))
+		FTranslatedLineTarget trace;
+		viewer.AimLineAttack(anglesTo.X, distTo, trace, target: target);
+		if (trace.linetarget && trace.linetarget != target)
 			return false;
 		
 		// All checks pass!
 		bestDFC = dfc;
 		return true;
-	}
-}
-
-class U2P_CheckAnythingBetween : LineTracer {
-	Actor TracingFrom, TracingTo;
-	private Array<Actor> PotentialBlockers;
-	
-	play bool Check(Vector3 start, Sector sec, Vector3 direction, double maxDist) {
-		PotentialBlockers.Clear();
-		
-		if (Trace(start, sec, direction, maxDist, 0)) {
-			// Hit something that's very definitely a blocker.
-			PotentialBlockers.Clear();
-			return false;
-		}
-		
-		// Check if any of the potential blockers really are blockers.
-		for (let i = 0, s = PotentialBlockers.Size(); i < s; i++) {
-			let a = PotentialBlockers[i];
-			if (
-				a.bSolid &&
-				(
-					TracingFrom.CanCollideWith(a, true) ||
-					a.CanCollideWith(TracingFrom, false)
-				)
-			) {
-				PotentialBlockers.Clear();
-				return false;
-			}
-		}
-		
-		PotentialBlockers.Clear();
-		return true;
-	}
-	
-	override ETraceStatus TraceCallback() {
-		if (Results.HitType == TRACE_HitActor) {
-			if (Results.HitActor != TracingFrom && Results.HitActor != TracingTo)
-				PotentialBlockers.Push(Results.HitActor);
-			return TRACE_Skip;
-		}
-		else
-			return TRACE_Stop;
 	}
 }
 
