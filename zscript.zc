@@ -140,7 +140,7 @@ class U2P_PlayerState : Thinker {
 			
 			// Look for the item that's closest to the center of the player actor's field of view.
 			for (let i = BlockThingsIterator.Create(pp, usetopickup_fulluserange && pp is "PlayerPawn"? PlayerPawn(pp).UseRange : max(pp.Height, pp.Radius)); i.Next();)
-			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial && CheckTarget(pp, i.thing, bestDFC))
+			if (i.thing != bestTarget && i.thing is "Inventory" && CheckTarget(pp, i.thing, bestDFC))
 				bestTarget = Inventory(i.thing);
 			
 			if (FocusedItem && (!bestTarget || bestTarget != origTarget)) {
@@ -186,8 +186,12 @@ class U2P_PlayerState : Thinker {
 	 * @return true if the target is valid; false otherwise.
 	 */
 	static bool CheckTarget(Actor viewer, Actor target, in out double bestDFC) {
-		// Does it exist at all?
-		if (!target)
+		if (
+			// Does it exist at all?
+			!target ||
+			// Can it be picked up?
+			!target.bSpecial
+		)
 			// Nope.
 			return false;
 		
