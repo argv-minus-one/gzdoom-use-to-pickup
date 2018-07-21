@@ -262,6 +262,7 @@ class U2P_ItemHighlight : Thinker {
 	float Opacity;
 	protected float OpacityIncrement;
 	bool Ready;
+	private transient ui String PickUpText;
 	
 	// Record this information so that the highlight can fade out, even if the item disappears.
 	Vector3 TargetPos;
@@ -481,11 +482,14 @@ class U2P_ItemHighlight : Thinker {
 		}
 		
 		// Draw the “pick up” label.
+		if (!PickUpText)
+			PickUpText = StringTable.Localize("U2P_PickUpText", prefixed: false);
+		
 		Screen.DrawText(
 			dc.MsgFont, TextColor_PressToUseMsg,
 			textCoord.X, textCoord.Y,
-			"$U2P_PickUpText",
-			DTA_TextLen, int(TargetTag.Length() * Opacity),
+			PickUpText,
+			DTA_TextLen, int(PickUpText.Length() * Opacity),
 			DTA_Alpha, Opacity,
 			DTA_CleanNoMove, true
 		);
