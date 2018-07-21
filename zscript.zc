@@ -369,7 +369,6 @@ class U2P_ItemHighlight : Thinker {
 		let texSize = TexMan.GetScaledSize(BracketTex) * (min(Screen.GetWidth(), Screen.GetHeight()) / ScaleBase);
 		
 		for (let corner = 0; corner < 4; corner++) {
-			// Draw vertical part
 			Screen.DrawTexture(
 				BracketTex, false,
 				screenCoord[corner & 1].X - (corner & 1? texSize.X : 0.),
