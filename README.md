@@ -6,9 +6,11 @@ Also, this mod shows neat-looking brackets around the item, and its name.
 
 ## Usage
 
-Just load this into GZDoom with your favorite mods. This should work with (almost?) everything.
+Just load this into GZDoom with your favorite mods. It's not mod- or game-specific.
 
 It works with multiplayer in theory, though I haven't had a chance to test that.
+
+There will probably be conflicts with some other mods. Be sure to open an issue (or, better yet, a PR) if you find one.
 
 ## Options
 
