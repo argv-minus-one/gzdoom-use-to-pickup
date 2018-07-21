@@ -102,8 +102,9 @@ class U2P_PlayerState : Thinker {
 		if (!IsEnabledCVar)
 			IsEnabledCVar = CVar.GetCVar('usetopickup_enabled', Player);
 		
+		// Besides the cvar, don't apply to dead players or bots.
 		let pp = Player.mo;
-		if (IsEnabledCVar.GetBool()) {
+		if (IsEnabledCVar.GetBool() && Player.playerstate == PST_LIVE && !Player.bot) {
 			IsEnabled = true;
 			if (pp)
 				pp.bPickup = false;
