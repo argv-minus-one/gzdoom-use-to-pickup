@@ -117,16 +117,6 @@ class U2P_PlayerState : Thinker {
 		}
 		
 		if (pp && IsEnabled && !(gametic & 3)) {
-			// How far away can this actor pick up items from?
-			double range;
-			if (usetopickup_fulluserange && pp is "PlayerPawn")
-				range = PlayerPawn(pp).UseRange;
-			else {
-				// TODO: Just check if the actor is touching?
-				let pitchVec = Actor.AngleToVector(pp.Pitch);
-				range = pp.Radius * abs(pitchVec.X) + pp.Height * abs(pitchVec.Y);
-			}
-			
 			Inventory origTarget = null, bestTarget = null;
 			double bestDFC = HighlightFOV;
 			bool valid;
@@ -134,13 +124,13 @@ class U2P_PlayerState : Thinker {
 			// Check the current focused item.
 			if (FocusedItem) {
 				origTarget = FocusedItem.Target;
-				if (CheckTarget(pp, origTarget, range, bestDFC))
+				if (CheckTarget(pp, origTarget, bestDFC))
 					bestTarget = origTarget;
 			}
 			
 			// Look for the item that's closest to the center of the player actor's field of view.
-			for (let i = BlockThingsIterator.Create(pp, range); i.Next();)
-			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial && CheckTarget(pp, i.thing, range, bestDFC))
+			for (let i = BlockThingsIterator.Create(pp, usetopickup_fulluserange && pp is "PlayerPawn"? PlayerPawn(pp).UseRange : max(pp.Height, pp.Radius)); i.Next();)
+			if (i.thing != bestTarget && i.thing is "Inventory" && i.thing.bSpecial && CheckTarget(pp, i.thing, bestDFC))
 				bestTarget = Inventory(i.thing);
 			
 			if (FocusedItem && (!bestTarget || bestTarget != origTarget)) {
@@ -182,29 +172,46 @@ class U2P_PlayerState : Thinker {
 	 *
 	 * @param viewer The viewing actor.
 	 * @param target The actor that may or may not be a valid target.
-	 * @param range How far away the target may be.
 	 * @param bestDFC Distance-from-center of currently focused target. This is an out parameter; if the given target is valid, bestDFC will be updated with the DFC of the given target.
 	 * @return true if the target is valid; false otherwise.
 	 */
-	static bool CheckTarget(Actor viewer, Actor target, double range, in out double bestDFC) {
-		if (
-			// Does it exist at all?
-			!target ||
-			// Is it in range?
-			viewer.Distance3D(target) > range
-		)
+	static bool CheckTarget(Actor viewer, Actor target, in out double bestDFC) {
+		// Does it exist at all?
+		if (!target)
 			// Nope.
 			return false;
 		
-		let vecTo = viewer.Vec3To(target);
+		// Compute relevant points, distances, and angles.
+		let viewPos = viewer.Pos;
+		if (viewer.player)
+			viewPos.Z = viewer.player.viewz;
+		else
+			viewPos.Z += viewer.Height / 2.;
 		
-		// Correct for the center of target, and the view height of viewer.
-		vecTo.Z += target.Height / 2.;
-		vecTo.Z -= viewer.player? viewer.player.viewheight : viewer.Height / 2;
+		let targetPos = target.Pos;
+		targetPos.Z += target.Height / 2.;
+		
+		let vecTo = level.Vec3Diff(viewPos, targetPos);
+		
+		// Is it close enough?
+		if (usetopickup_fulluserange && viewer is "PlayerPawn") {
+			// Test by the viewer's use range.
+			if (vecTo.Length() > PlayerPawn(viewer).UseRange)
+				return false;
+		}
+		else {
+			// Test whether the actors are intersecting, ignoring viewpoints and angles.
+			if (
+				viewer.Distance2D(target) > max(viewer.Radius, target.Radius) ||
+				viewer.Pos.Z > target.Pos.Z + target.Height ||
+				target.Pos.Z > viewer.Pos.Z + viewer.Height
+			)
+				return false;
+		}
 		
 		let dirTo = vecTo.Unit();
 		Vector2 viewDA = (
-			Actor.deltaangle(viewer.AngleTo(target), viewer.Angle),
+			Actor.deltaangle(atan2(dirTo.Y, dirTo.X), viewer.Angle),
 			Actor.deltaangle(-asin(dirTo.Z), viewer.Pitch)
 		);
 		let dfc = viewDA.Length();
