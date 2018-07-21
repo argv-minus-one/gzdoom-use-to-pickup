@@ -192,11 +192,12 @@ class U2P_PlayerState : Thinker {
 		targetPos.Z += target.Height / 2.;
 		
 		let vecTo = level.Vec3Diff(viewPos, targetPos);
+		let distTo = vecTo.Length();
 		
 		// Is it close enough?
 		if (usetopickup_fulluserange && viewer is "PlayerPawn") {
 			// Test by the viewer's use range.
-			if (vecTo.Length() > PlayerPawn(viewer).UseRange)
+			if (distTo > PlayerPawn(viewer).UseRange)
 				return false;
 		}
 		else {
@@ -210,19 +211,73 @@ class U2P_PlayerState : Thinker {
 		}
 		
 		let dirTo = vecTo.Unit();
+		let anglesTo = (
+			atan2(dirTo.Y, dirTo.X),
+			-asin(dirTo.Z)
+		);
 		Vector2 viewDA = (
-			Actor.deltaangle(atan2(dirTo.Y, dirTo.X), viewer.Angle),
-			Actor.deltaangle(-asin(dirTo.Z), viewer.Pitch)
+			Actor.deltaangle(anglesTo.X, viewer.Angle),
+			Actor.deltaangle(anglesTo.Y, viewer.Pitch)
 		);
 		let dfc = viewDA.Length();
 		
 		// Is it within acceptable angles?
-		if (dfc < bestDFC) {
-			bestDFC = dfc;
-			return true;
+		if (dfc >= bestDFC)
+			return false;
+		
+		// Is there anything in the way?
+		let trace = new("U2P_CheckAnythingBetween");
+		trace.TracingFrom = viewer;
+		trace.TracingTo = target;
+		if (!trace.Check(viewPos, viewer.CurSector, dirTo, distTo))
+			return false;
+		
+		// All checks pass!
+		bestDFC = dfc;
+		return true;
+	}
+}
+
+class U2P_CheckAnythingBetween : LineTracer {
+	Actor TracingFrom, TracingTo;
+	private Array<Actor> PotentialBlockers;
+	
+	play bool Check(Vector3 start, Sector sec, Vector3 direction, double maxDist) {
+		PotentialBlockers.Clear();
+		
+		if (Trace(start, sec, direction, maxDist, 0)) {
+			// Hit something that's very definitely a blocker.
+			PotentialBlockers.Clear();
+			return false;
+		}
+		
+		// Check if any of the potential blockers really are blockers.
+		for (let i = 0, s = PotentialBlockers.Size(); i < s; i++) {
+			let a = PotentialBlockers[i];
+			if (
+				a.bSolid &&
+				(
+					TracingFrom.CanCollideWith(a, true) ||
+					a.CanCollideWith(TracingFrom, false)
+				)
+			) {
+				PotentialBlockers.Clear();
+				return false;
+			}
+		}
+		
+		PotentialBlockers.Clear();
+		return true;
+	}
+	
+	override ETraceStatus TraceCallback() {
+		if (Results.HitType == TRACE_HitActor) {
+			if (Results.HitActor != TracingFrom && Results.HitActor != TracingTo)
+				PotentialBlockers.Push(Results.HitActor);
+			return TRACE_Skip;
 		}
 		else
-			return false;
+			return TRACE_Stop;
 	}
 }
 
