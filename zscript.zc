@@ -395,5 +395,65 @@ class U2P_ItemHighlight : Thinker {
 				DTA_DestHeightF, texSize.Y
 			);
 		}
+		
+		let fontHeight = dc.MsgFont.GetHeight() * CleanYFac;
+		
+		Vector2 textCoord = (
+			screenCoord[0].X,
+			screenCoord[1].Y + (fontHeight * .8)
+		);
+		
+		Screen.DrawText(
+			dc.MsgFont, TextColor_Description,
+			textCoord.X, textCoord.Y,
+			TargetTag,
+			DTA_TextLen, int(TargetTag.Length() * Opacity),
+			DTA_Alpha, Opacity,
+			DTA_CleanNoMove, true
+		);
+		
+		textCoord.Y += fontHeight * 1.8;
+		
+		{
+			// Draw the label saying which button to push.
+			String keyName;
+			{
+				int bindingKeys[2];
+				[bindingKeys[0], bindingKeys[1]] = Bindings.GetKeysForCommand("+use");
+				keyName = KeyBindings.NameKeys(bindingKeys[0], bindingKeys[1]);
+			}
+			let keyNameWidth = dc.MsgFont.StringWidth(keyName) * CleanXFac;
+			let borderWidth = max(fontHeight >> 2, 1);
+			
+			Screen.Dim(
+				BackgroundColor_KeyBind,
+				opacity,
+				textCoord.X - borderWidth,
+				textCoord.Y - borderWidth,
+				keyNameWidth + borderWidth + borderWidth,
+				fontHeight + borderWidth + borderWidth
+			);
+			
+			Screen.DrawText(
+				dc.MsgFont, TextColor_KeyBind,
+				textCoord.X, textCoord.Y,
+				keyName,
+				DTA_Alpha, opacity,
+				DTA_CleanNoMove, true
+			);
+			
+			// Advance the draw position for the text.
+			textCoord.X += keyNameWidth + borderWidth + borderWidth + dc.MsgFont.GetCharWidth(20) * 2;
+		}
+		
+		// Draw the “pick up” label.
+		Screen.DrawText(
+			dc.MsgFont, TextColor_PressToUseMsg,
+			textCoord.X, textCoord.Y,
+			"$U2P_PickUpText",
+			DTA_TextLen, int(TargetTag.Length() * Opacity),
+			DTA_Alpha, Opacity,
+			DTA_CleanNoMove, true
+		);
 	}
 }
