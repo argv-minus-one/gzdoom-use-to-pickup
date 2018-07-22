@@ -360,7 +360,7 @@ class U2P_ItemHighlight : Thinker {
 			// Otherwise, carry on.
 		}
 		
-		if (Target) {
+		if (Target && Target.bSpecial) {
 			TargetPos = Target.Pos;
 			TargetPos.Z += Target.GetBobOffset();
 			
