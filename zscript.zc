@@ -401,7 +401,7 @@ class U2P_ItemHighlight : Thinker {
 			// Otherwise, carry on.
 		}
 		
-		if (Target) {
+		if (Target && Target.bSpecial) {
 			TargetGeom.Update(Target, bobOffset: true);
 			
 			if (ClassInfo && ClassInfo.ForceTag) {
