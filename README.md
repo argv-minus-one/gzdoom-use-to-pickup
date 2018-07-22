@@ -34,6 +34,30 @@ This is a client-side option. In multiplayer games, players may independently de
 
 A key binding for toggling the mod on/off. This also appears in the “Customize Controls” menu.
 
+## For Modders
+
+By default, this mod looks at the `Tag` property of actors to decide on their name, and applies use-to-pickup behavior to all actors that can be picked up. This behavior can be customized on a per-class basis by including a `UseToPickup.ini` file in your mod, with the replacement settings. Take a look at [the one that comes with this mod](UseToPickup.ini) for an example of how this looks.
+
+The following keys are recognized:
+
+* `AlwaysTouchPickup`
+	
+	If yes, this item will always be picked up by touching it, even if this mod is enabled.
+
+* `Tag`
+	
+	Default name of the item, shown under the brackets. Used if the item's `Tag` property is absent.
+
+* `UsePickupMessageAsTag`
+	
+	If yes, and if an item has no `Tag` but does have a `PickupMessage`, then use that.
+
+* `ForceTag`
+	
+	If yes, always use the `Tag` in the INI as the displayed name of the item.
+
+The INI format is defined by [the INIFile library](https://github.com/argv-minus-one/gzdoom-zscript-utils/tree/master/INIFile). Sections are merged as specified in the documentation for that library, [under “Merging Data by Actor Class”](https://github.com/argv-minus-one/gzdoom-zscript-utils/blob/master/INIFile/README.md#user-content-merging-data-by-actor-class).
+
 ## Credits
 
 Much smarter people than me made this possible. They include:
