@@ -487,6 +487,7 @@ class U2P_ItemHighlight : Thinker {
 		
 		// Top left, bottom right
 		Vector2 screenCoord[2];
+		let halfRad = TargetGeom.Radius / 2;
 		
 		// Adapted from Pixel Eater's Fill Spectre.
 		for (let corner = 0; corner < 4; corner++) {
@@ -496,8 +497,8 @@ class U2P_ItemHighlight : Thinker {
 				dc.ViewPos,
 				TargetGeom.Pos + (
 					// `corner & 1` is only true for the top right and bottom right corners.
-					sin(dc.Viewer.Angle) * TargetGeom.Radius * (corner & 1? 1. : -1.),
-					cos(dc.Viewer.Angle) * TargetGeom.Radius * (corner & 1? -1. : 1.),
+					sin(dc.Viewer.Angle) * halfRad * (corner & 1? 1. : -1.),
+					cos(dc.Viewer.Angle) * halfRad * (corner & 1? -1. : 1.),
 					// `corner & 2` is only true for the bottom left and bottom right corners.
 					corner & 2? 0 : TargetGeom.Height
 				)
