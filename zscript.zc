@@ -259,11 +259,10 @@ class U2P_PlayerState : Thinker {
 		else
 			viewPos.Z += viewer.Height / 2.;
 		
-		let targetPos = target.Pos;
-		targetPos.Z += target.Height / 2.;
-		targetPos.Z += target.GetBobOffset();
+		U2P_ActorAdjustedGeometry targetGeom;
+		targetGeom.Update(target);
 		
-		let vecTo = level.Vec3Diff(viewPos, targetPos);
+		let vecTo = level.Vec3Diff(viewPos, targetGeom.CenterPos);
 		let distTo = vecTo.Length();
 		
 		// Is it close enough?
@@ -311,6 +310,49 @@ class U2P_PlayerState : Thinker {
 	}
 }
 
+struct U2P_ActorAdjustedGeometry {
+	Vector3 Pos, CenterPos;
+	double Height, Radius;
+	
+	void Copy(U2P_ActorAdjustedGeometry other) {
+		Pos = other.Pos;
+		CenterPos = other.CenterPos;
+		Height = other.Height;
+		Radius = other.Radius;
+	}
+	
+	play void Update(Actor a, bool naive = false, bool bobOffset = false) {
+		Pos = a.Pos;
+		Height = a.Height;
+		Radius = a.Radius;
+		
+		if (naive)
+			return;
+		
+		TextureID tex;
+		bool flipped;
+		Vector2 scale;
+		// TODO: Account for sprite rotation?
+		[tex, flipped, scale] = a.CurState.GetSpriteTexture(0, scale: a.Scale);
+		
+		if (!tex.IsValid())
+			return; // Actor has no visible sprite at all. Not much we can do here.
+		
+		let texSize = TexMan.GetScaledSize(tex);
+		let texOffs = TexMan.GetScaledOffset(tex);
+		
+		Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
+		Height = texSize.Y * scale.Y;
+		Radius = texSize.X * scale.X;
+		
+		if (bobOffset)
+			Pos.Z += a.GetBobOffset();
+		
+		CenterPos = Pos;
+		CenterPos.Z += Height / 2;
+	}
+}
+
 class U2P_ItemHighlight : Thinker {
 	const FadeInRate = float(.14);
 	const FadeOutRate = float(-.07);
@@ -326,8 +368,7 @@ class U2P_ItemHighlight : Thinker {
 	private transient ui String PickUpText;
 	
 	// Record this information so that the highlight can fade out, even if the item disappears.
-	Vector3 TargetPos;
-	double TargetHeight, TargetRadius;
+	U2P_ActorAdjustedGeometry TargetGeom;
 	String TargetTag;
 	
 	U2P_ItemHighlight Init(PlayerInfo player, Inventory target, U2P_ActorClassInfo classInfo = null) {
@@ -360,9 +401,8 @@ class U2P_ItemHighlight : Thinker {
 			// Otherwise, carry on.
 		}
 		
-		if (Target && Target.bSpecial) {
-			TargetPos = Target.Pos;
-			TargetPos.Z += Target.GetBobOffset();
+		if (Target) {
+			TargetGeom.Update(Target, bobOffset: true);
 			
 			if (ClassInfo && ClassInfo.ForceTag) {
 				if (!TargetTag)
@@ -379,9 +419,6 @@ class U2P_ItemHighlight : Thinker {
 				);
 				TargetTag = StringTable.Localize(TargetTag);
 			}
-			
-			TargetHeight = Target.Height;
-			TargetRadius = Target.Radius;
 			
 			if (!CheckedForClassInfo && !ClassInfo) {
 				ClassInfo = UseToPickup.ActorClassInfo(Target.GetClass());
@@ -457,12 +494,12 @@ class U2P_ItemHighlight : Thinker {
 			// The corner numbers are: 0 = top left, 1 = top right, 2 = bottom left, 3 = bottom right
 			let vert = dc.ViewPos + LevelLocals.Vec3Diff(
 				dc.ViewPos,
-				TargetPos + (
+				TargetGeom.Pos + (
 					// `corner & 1` is only true for the top right and bottom right corners.
-					sin(dc.Viewer.Angle) * TargetRadius * (corner & 1? 1. : -1.),
-					cos(dc.Viewer.Angle) * TargetRadius * (corner & 1? -1. : 1.),
+					sin(dc.Viewer.Angle) * TargetGeom.Radius * (corner & 1? 1. : -1.),
+					cos(dc.Viewer.Angle) * TargetGeom.Radius * (corner & 1? -1. : 1.),
 					// `corner & 2` is only true for the bottom left and bottom right corners.
-					corner & 2? 0 : TargetHeight
+					corner & 2? 0 : TargetGeom.Height
 				)
 			);
 			
