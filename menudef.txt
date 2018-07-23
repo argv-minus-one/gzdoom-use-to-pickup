@@ -16,4 +16,5 @@ OptionMenu "UseToPickupOptions" {
 	StaticText "$OPTMNU_CONTROLS", "Gold"
 	StaticText ""
 	Control "$U2P_KeyBindMenu_EnableToggle", "toggle usetopickup_enabled"
+	Control "$U2P_KeyBindMenu_Push", "usetopickup_push"
 }

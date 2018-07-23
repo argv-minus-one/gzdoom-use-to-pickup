@@ -34,6 +34,10 @@ This is a client-side option. In multiplayer games, players may independently de
 
 A key binding for toggling the mod on/off. This also appears in the “Customize Controls” menu.
 
+### Push Item Away
+
+If there are a whole bunch of items clustered together, and you can't find the one you want among all the clutter, you can solve the problem the same way as you would in real life: by pushing aside the clutter! Bind this key to do that.
+
 ## For Modders
 
 By default, this mod looks at the `Tag` property of actors to decide on their name, and applies use-to-pickup behavior to all actors that can be picked up. This behavior can be customized on a per-class basis by including a `UseToPickup.ini` file in your mod, with the replacement settings. Take a look at [the one that comes with this mod](UseToPickup.ini) for an example of how this looks.

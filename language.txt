@@ -5,6 +5,7 @@ U2P_OptionsMenu_Enable = "Enable Mod";
 U2P_OptionsMenu_FullUseRange = "Allow full Use range";
 U2P_KeyBindMenu_Heading = "Use To Pickup";
 U2P_KeyBindMenu_EnableToggle = "Toggle Enabled";
+U2P_KeyBindMenu_Push = "Push Item Away";
 HTHBONUS = "health bonus";
 ARMBONUS = "armor bonus";
 MEDIKIT = "medikit";

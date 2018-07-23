@@ -99,6 +99,15 @@ class UseToPickup : StaticEventHandler {
 		
 		return null;
 	}
+	
+	override void NetworkProcess(ConsoleEvent evt) {
+		if (evt.Name == "UseToPickup_Push") {
+			let ps = PlayerStates[evt.Player];
+			if (!ps)
+				ThrowAbortException("Netevent UseToPickup_Push from nonexistent player %d!", evt.Player);
+			ps.PushFocusedItem();
+		}
+	}
 }
 
 class U2P_ActorClassInfo {
@@ -140,6 +149,7 @@ struct U2P_DrawContext ui {
 
 class U2P_PlayerState : Thinker {
 	const HighlightFOV = 25.;
+	const PushCooldownTics = 15;
 	
 	U2P_ItemHighlight FocusedItem;
 	PlayerInfo Player;
@@ -147,6 +157,7 @@ class U2P_PlayerState : Thinker {
 	uint8 SelectPhase;
 	transient bool IsEnabled;
 	transient CVar IsEnabledCVar;
+	transient private uint8 PushCooldown;
 	
 	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
 		self.Player = player;
@@ -175,10 +186,29 @@ class U2P_PlayerState : Thinker {
 			FocusedItem.Destroy();
 	}
 	
+	void PushFocusedItem() {
+		if (PushCooldown || !FocusedItem)
+			return;
+		
+		let item = FocusedItem.Target;
+		if (!item || !item.bSpecial)
+			return;
+		
+		let pp = Player.mo;
+		if (!pp)
+			return;
+		
+		item.Thrust(1, pp.AngleTo(item));
+		PushCooldown = PushCooldownTics;
+	}
+	
 	override void Tick() {
 		// Clear the focused item, if appropriate.
 		if (FocusedItem && !FocusedItem.Target)
 			FocusedItem = null;
+		
+		if (PushCooldown)
+			PushCooldown--;
 		
 		// Update enabled status, PICKUP flag, etc.
 		if (!IsEnabledCVar)
