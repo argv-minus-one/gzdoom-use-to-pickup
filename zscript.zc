@@ -33,6 +33,27 @@ class UseToPickup : StaticEventHandler {
 		}
 	}
 	
+	override void WorldLoaded(WorldEvent evt) {
+		// This is a StaticEventHandler. It is initialized only on engine startup, and its state is not part of save files. This is useful because it fills in the ClassInfo on engine startup only, but it has the side effect that the PlayerStates array is lost when loading a save! So, we'll iterate over all live U2P_PlayerState instances, and reconstruct our PlayerStates array from that.
+		
+		// But first, we need to clear it out of stale references.
+		for (let i = 0; i < MAXPLAYERS; i++)
+			PlayerStates[i] = null;
+		
+		let i = ThinkerIterator.Create('U2P_PlayerState');
+		U2P_PlayerState ps;
+		while (ps = U2P_PlayerState(i.Next())) {
+			let p = ps.PlayerNum;
+			
+			if (PlayerStates[p]) {
+				Console.Printf("\cgMultiple U2P_PlayerState instances for player number %d! Deleting one of them.", p);
+				ps.Destroy();
+			}
+			else
+				PlayerStates[p] = ps;
+		}
+	}
+	
 	override void PlayerEntered(PlayerEvent evt) {
 		let p = evt.PlayerNumber;
 		if (!PlayerStates[p])
@@ -122,12 +143,14 @@ class U2P_PlayerState : Thinker {
 	
 	U2P_ItemHighlight FocusedItem;
 	PlayerInfo Player;
+	int PlayerNum;
 	uint8 SelectPhase;
 	transient bool IsEnabled;
 	transient CVar IsEnabledCVar;
 	
 	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
 		self.Player = player;
+		self.PlayerNum = playerNum;
 		
 		// Target selection runs every 4 tics. In multiplayer with a lot of players, this could result in stuttering, from target selection happening for all of them at the same time (every fourth tic). So, we offset which of every fourth tic to perform target selection on, based on the player number. For example:
 		// Player 0 will select targets on tic 0, 3, 6, …
@@ -145,6 +168,11 @@ class U2P_PlayerState : Thinker {
 			FocusedItem.FadeOut();
 			FocusedItem = null;
 		}
+	}
+	
+	override void OnDestroy() {
+		if (FocusedItem)
+			FocusedItem.Destroy();
 	}
 	
 	override void Tick() {
