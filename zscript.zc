@@ -393,7 +393,7 @@ struct U2P_ActorAdjustedGeometry {
 		Height = a.Height;
 		Radius = a.Radius;
 		
-		if (classInfo.UseSpriteDimensions && !(classInfo.OverrideRadius || classInfo.OverrideHeight)) {
+		if (!classInfo || (classInfo.UseSpriteDimensions && !(classInfo.OverrideRadius || classInfo.OverrideHeight))) {
 			TextureID tex;
 			bool flipped;
 			Vector2 scale;
@@ -406,19 +406,21 @@ struct U2P_ActorAdjustedGeometry {
 				Height = texSize.Y * scale.Y;
 				Radius = texSize.X * scale.X;
 				
-				if (!classInfo.OverrideZOffset) {
+				if (!classInfo || !classInfo.OverrideZOffset) {
 					let texOffs = TexMan.GetScaledOffset(tex);
 					Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
 				}
 			}
 		}
 		
-		if (classInfo.OverrideRadius)
-			Radius = classInfo.Radius;
-		if (classInfo.OverrideHeight)
-			Height = classInfo.Height;
-		if (classInfo.OverrideZOffset)
-			Pos.Z += classInfo.ZOffset;
+		if (classInfo) {
+			if (classInfo.OverrideRadius)
+				Radius = classInfo.Radius;
+			if (classInfo.OverrideHeight)
+				Height = classInfo.Height;
+			if (classInfo.OverrideZOffset)
+				Pos.Z += classInfo.ZOffset;
+		}
 		
 		if (bobOffset)
 			Pos.Z += a.GetBobOffset();
