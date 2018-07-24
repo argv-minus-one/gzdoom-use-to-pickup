@@ -60,6 +60,26 @@ The following keys are recognized:
 	
 	If yes, always use the `Tag` in the INI as the displayed name of the item.
 
+* `UseSpriteDimensions`
+	
+	Normally, this mod will attempt to figure out the real dimensions of affected items by examining their sprites. If this is set to no, that will not happen for affected actors; their normal `Radius` and `Height` properties will be used, and `ZOffset` will be assumed to be zero. Default is yes.
+	
+	This mod is not able to detect the correct dimensions of models or voxels. It is also not able to detect whether a given actor has a model or voxel representation. For this reason, `UseSpriteDimensions` must be explicitly turned off for such actors.
+
+* `Radius` & `Height`
+	
+	If provided, these set the radius and height of affected items for the purposes of positioning brackets around them. If both are provided, `UseSpriteDimensions=no` is implied.
+	
+	In vanilla, the actor properties `Radius` and `Height` are not usually correct for inventory item classes, because nothing can collide with them anyway. However, this mod *does* need those values to be correct. It can figure out the correct values by looking at their sprites, but won't give correct results for actors represented by voxels or models. These two INI settings allow you to supply the correct values explicitly, without changing the actual actor classes.
+
+* `ZOffset`
+	
+	If provided, this sets how far off the ground affected items float, for the purposes of positioning brackets around them. This will override sprite-based detection of that value.
+	
+	Many games have collectable items that appear to float above the ground, rather than lying on the ground, such as Doom's Soulsphere. This floating is not represented by any actor property. As far as the engine is concerned, they are lying on the ground, not floating in the air.
+	
+	As with `Radius` and `Height`, this mod does need that information, and can examine sprites to determine the correct value, but that won't work for non-sprite actors. For those actors, this INI setting needs to be provided instead.
+
 The INI format is defined by [the INIFile library](https://github.com/argv-minus-one/gzdoom-zscript-utils/tree/master/INIFile). Sections are merged as specified in the documentation for that library, [under “Merging Data by Actor Class”](https://github.com/argv-minus-one/gzdoom-zscript-utils/blob/master/INIFile/README.md#user-content-merging-data-by-actor-class).
 
 ## Credits

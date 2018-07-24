@@ -113,13 +113,23 @@ class UseToPickup : StaticEventHandler {
 class U2P_ActorClassInfo {
 	Class<Actor> ActorClass;
 	String Tag;
-	bool AlwaysTouchPickup, ForceTag, UsePickupMessageAsTag;
+	bool AlwaysTouchPickup, ForceTag, UsePickupMessageAsTag, UseSpriteDimensions, OverrideRadius, OverrideHeight, OverrideZOffset;
+	double Radius, Height, ZOffset;
 	
 	void Init(U2P_INISection section) {
 		Tag = section.Get("Tag");
 		AlwaysTouchPickup = section.GetBool("AlwaysTouchPickup");
 		ForceTag = section.GetBool("ForceTag");
 		UsePickupMessageAsTag = section.GetBool("UsePickupMessageAsTag");
+		UseSpriteDimensions = section.GetBool("UseSpriteDimensions", default: true);
+		Radius = section.GetDouble("Radius", default: double.NaN);
+		Height = section.GetDouble("Height", default: double.NaN);
+		ZOffset = section.GetDouble("ZOffset", default: double.NaN);
+		
+		// This is a fun little trick. Unlike all other floating-point values, NaN does *not* equal itself, so we can detect whether a value is NaN by comparing it to itself.
+		OverrideRadius = Radius == Radius;
+		OverrideHeight = Height == Height;
+		OverrideZOffset = ZOffset == ZOffset;
 	}
 }
 
@@ -317,7 +327,7 @@ class U2P_PlayerState : Thinker {
 			viewPos.Z += viewer.Height / 2.;
 		
 		U2P_ActorAdjustedGeometry targetGeom;
-		targetGeom.Update(target);
+		targetGeom.Update(target, UseToPickup.ActorClassInfo(target.GetClass()));
 		
 		let vecTo = level.Vec3Diff(viewPos, targetGeom.CenterPos);
 		let distTo = vecTo.Length();
@@ -378,28 +388,37 @@ struct U2P_ActorAdjustedGeometry {
 		Radius = other.Radius;
 	}
 	
-	play void Update(Actor a, bool naive = false, bool bobOffset = false) {
+	play void Update(Actor a, U2P_ActorClassInfo classInfo, bool bobOffset = false) {
 		Pos = a.Pos;
 		Height = a.Height;
 		Radius = a.Radius;
 		
-		if (!naive) {
+		if (classInfo.UseSpriteDimensions && !(classInfo.OverrideRadius || classInfo.OverrideHeight)) {
 			TextureID tex;
 			bool flipped;
 			Vector2 scale;
 			// TODO: Account for sprite rotation?
 			[tex, flipped, scale] = a.CurState.GetSpriteTexture(0, scale: a.Scale);
 			
-			if (!tex.IsValid())
-				return; // Actor has no visible sprite at all. Not much we can do here.
-			
-			let texSize = TexMan.GetScaledSize(tex);
-			let texOffs = TexMan.GetScaledOffset(tex);
-			
-			Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
-			Height = texSize.Y * scale.Y;
-			Radius = texSize.X * scale.X;
+			if (tex.IsValid()) {
+				let texSize = TexMan.GetScaledSize(tex);
+				
+				Height = texSize.Y * scale.Y;
+				Radius = texSize.X * scale.X;
+				
+				if (!classInfo.OverrideZOffset) {
+					let texOffs = TexMan.GetScaledOffset(tex);
+					Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
+				}
+			}
 		}
+		
+		if (classInfo.OverrideRadius)
+			Radius = classInfo.Radius;
+		if (classInfo.OverrideHeight)
+			Height = classInfo.Height;
+		if (classInfo.OverrideZOffset)
+			Pos.Z += classInfo.ZOffset;
 		
 		if (bobOffset)
 			Pos.Z += a.GetBobOffset();
@@ -458,7 +477,7 @@ class U2P_ItemHighlight : Thinker {
 		}
 		
 		if (Target && Target.bSpecial) {
-			TargetGeom.Update(Target, bobOffset: true);
+			TargetGeom.Update(Target, ClassInfo, bobOffset: true);
 			
 			if (ClassInfo && ClassInfo.ForceTag) {
 				if (!TargetTag)
