@@ -212,10 +212,10 @@ struct U2P_INIFile {
 		return Section(level.MapName);
 	}
 	
-	String, U2P_INISection, uint Get(String sectionName, String key) const {
+	String, U2P_INISection, uint Get(String sectionName, String key, String default = "") const {
 		let section = Section(sectionName);
 		if (!section)
-			return "", null, 0;
+			return default, null, 0;
 		
 		String value;
 		uint keyIndex;
@@ -224,44 +224,44 @@ struct U2P_INIFile {
 		return value, section, keyIndex;
 	}
 	
-	int, U2P_INISection, uint GetInt(String sectionName, String key, int base = 0) const {
+	int, U2P_INISection, uint GetInt(String sectionName, String key, int base = 0, int default = 0) const {
 		String s;
 		U2P_INISection sec;
 		uint i;
 		[s, sec, i] = Get(sectionName, key);
-		return s.ToInt(base), sec, i;
+		return s? s.ToInt(base) : default, sec, i;
 	}
 	
-	double, U2P_INISection, uint GetDouble(String sectionName, String key) const {
+	double, U2P_INISection, uint GetDouble(String sectionName, String key, double default = 0) const {
 		String s;
 		U2P_INISection sec;
 		uint i;
 		[s, sec, i] = Get(sectionName, key);
-		return s.ToDouble(), sec, i;
+		return s? s.ToDouble() : default, sec, i;
 	}
 	
-	bool, U2P_INISection, uint GetBool(String sectionName, String key) const {
+	bool, U2P_INISection, uint GetBool(String sectionName, String key, bool default = false) const {
 		String s;
 		U2P_INISection sec;
 		uint i;
 		[s, sec, i] = Get(sectionName, key);
-		return ParseBool(s), sec, i;
+		return s? ParseBool(s) : default, sec, i;
 	}
 	
-	String, U2P_INISection, uint CurrentMapGet(String key) const {
-		return Get(level.MapName, key);
+	String, U2P_INISection, uint CurrentMapGet(String key, String default = "") const {
+		return Get(level.MapName, key, default);
 	}
 	
-	int, U2P_INISection, uint CurrentMapGetInt(String key, int base = 0) const {
-		return GetInt(level.MapName, key, base);
+	int, U2P_INISection, uint CurrentMapGetInt(String key, int base = 0, int default = 0) const {
+		return GetInt(level.MapName, key, base, default);
 	}
 	
-	double, U2P_INISection, uint CurrentMapGetDouble(String key) const {
-		return GetDouble(level.MapName, key);
+	double, U2P_INISection, uint CurrentMapGetDouble(String key, double default = 0) const {
+		return GetDouble(level.MapName, key, default);
 	}
 	
-	bool, U2P_INISection, uint CurrentMapGetBool(String key) const {
-		return GetBool(level.MapName, key);
+	bool, U2P_INISection, uint CurrentMapGetBool(String key, bool default = false) const {
+		return GetBool(level.MapName, key, default);
 	}
 	
 	String, U2P_INISection, uint Set(String sectionName, String key, String value) {
@@ -373,46 +373,46 @@ class U2P_INISection {
 		}
 	}
 	
-	String, uint Get(String key) const {
+	String, uint Get(String key, String default = "") const {
 		let idx = IndexOf(key);
-		return (idx == Values.Size()? "" : Values[idx]), idx;
+		return (idx == Values.Size()? default : Values[idx]), idx;
 	}
 	
-	int, uint GetInt(String key, int base = 0) const {
+	int, uint GetInt(String key, int base = 0, int default = 0) const {
 		String s;
 		uint i;
 		[s, i] = Get(key);
-		return s.ToInt(base), i;
+		return s? s.ToInt(base) : default, i;
 	}
 	
-	double, uint GetDouble(String key) const {
+	double, uint GetDouble(String key, double default = 0) const {
 		String s;
 		uint i;
 		[s, i] = Get(key);
-		return s.ToDouble(), i;
+		return s? s.ToDouble() : default, i;
 	}
 	
-	bool, uint GetBool(String key) const {
+	bool, uint GetBool(String key, bool default = false) const {
 		String s;
 		uint i;
 		[s, i] = Get(key);
-		return U2P_INIFile.ParseBool(s), i;
+		return s? U2P_INIFile.ParseBool(s) : default, i;
 	}
 	
-	String, uint CurrentMapGet() const {
-		return Get(level.MapName);
+	String, uint CurrentMapGet(String default = "") const {
+		return Get(level.MapName, default);
 	}
 	
-	int, uint CurrentMapGetInt(int base = 0) const {
-		return GetInt(level.MapName, base);
+	int, uint CurrentMapGetInt(int base = 0, int default = 0) const {
+		return GetInt(level.MapName, base, default);
 	}
 	
-	double, uint CurrentMapGetDouble() const {
-		return GetDouble(level.MapName);
+	double, uint CurrentMapGetDouble(double default = 0) const {
+		return GetDouble(level.MapName, default);
 	}
 	
-	bool, uint CurrentMapGetBool() const {
-		return GetBool(level.MapName);
+	bool, uint CurrentMapGetBool(bool default = false) const {
+		return GetBool(level.MapName, default);
 	}
 	
 	String, uint Set(String key, String value) {
