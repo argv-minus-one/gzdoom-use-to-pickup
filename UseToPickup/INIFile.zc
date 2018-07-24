@@ -3,6 +3,9 @@ struct U2P_INIFile {
 	// ASCII 32 (space) doesn't fit into a 32-bit integer, so it's handled separately.
 	const WhitespaceASCIIChars = 15872;
 	
+	// Delimiter for multi-sections.
+	const MultiSectionDelimiter = "|";
+	
 	static String TrimSpace(String s, bool fromStart = true, bool fromEnd = true) {
 		let len = s.Length();
 		if (len == 0)
@@ -78,6 +81,7 @@ struct U2P_INIFile {
 		Array<String> lines;
 		text.Split(lines, "\n", TOK_SKIPEMPTY);
 		U2P_INISection curSection = null;
+		bool isMultiSection = false;
 		uint curKey = uint.max;
 		
 		for (uint lineNum = 0, lineCount = lines.Size(); lineNum < lineCount; lineNum++) {
@@ -99,9 +103,22 @@ struct U2P_INIFile {
 					Console.Printf("\cgLump %d line %d: Ignoring garbage text after end of section header: %s", lump, lineNum, line.Mid(end + 1));
 				}
 				
+				// If the previous section was a multi-section, handle that now.
+				if (isMultiSection)
+					AddMultiSection(curSection);
+				
 				let sectionName = line.Mid(1, end - 1);
 				
-				curSection = NewSection(sectionName);
+				if (sectionName.IndexOf(MultiSectionDelimiter) >= 0) {
+					// Construct a synthetic section, which will be split later.
+					isMultiSection = true;
+					curSection = NewSectionNoAdd(sectionName);
+				}
+				else {
+					isMultiSection = false;
+					curSection = NewSection(sectionName);
+				}
+				
 				curKey = uint.max;
 			}
 			else {
@@ -129,6 +146,31 @@ struct U2P_INIFile {
 				}
 			}
 		}
+		
+		// If the final section was a multi-section, handle that now.
+		if (isMultiSection)
+			AddMultiSection(curSection);
+	}
+	
+	void AddMultiSection(U2P_INISection multiSection) {
+		Array<String> sectionNames;
+		multiSection.Name.Split(sectionNames, MultiSectionDelimiter, keepEmpty: TOK_SKIPEMPTY);
+		
+		for (let i = 0, s = sectionNames.Size(); i < s; i++) {
+			let sectionName = sectionNames[i];
+			let fragSection = NewSection(sectionName);
+			
+			if (fragSection.Keys.Size() == 0) {
+				// Fast path. The newly created fragment is currently empty, so we can just replace its Keys and Values with those of the multi-section we're splitting.
+				fragSection.Keys.Copy(multiSection.Keys);
+				fragSection.Values.Copy(multiSection.Values);
+			}
+			else {
+				// Slow path. Set each key and value, one at a time. Array.Copy cannot copy into a non-empty array, and we need to eliminate duplicate keys anyway.
+				for (let k = 0, ks = multiSection.Keys.Size(); k < ks; k++)
+					fragSection.Set(multiSection.Keys[k], multiSection.Values[k]);
+			}
+		}
 	}
 	
 	void ReadLumpsNamed(String lumpName, int ns = Wads.GlobalNamespace) {
@@ -139,11 +181,16 @@ struct U2P_INIFile {
 	U2P_INISection NewSection(String name) {
 		let s = Section(name);
 		if (!s) {
-			s = new("U2P_INISection");
-			s.Name = name;
-			s.KeyCaseSensitive = KeyCaseSensitive;
+			s = NewSectionNoAdd(name);
 			Sections.Push(s);
 		}
+		return s;
+	}
+	
+	private U2P_INISection NewSectionNoAdd(String name) {
+		let s = new("U2P_INISection");
+		s.Name = name;
+		s.KeyCaseSensitive = KeyCaseSensitive;
 		return s;
 	}
 	
