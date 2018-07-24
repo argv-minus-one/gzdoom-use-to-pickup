@@ -157,6 +157,30 @@ struct U2P_DrawContext ui {
 	}
 }
 
+class U2P_ItemReachabilityTracer : LineTracer {
+	Array<Actor> IgnoreActors;
+	
+	override ETraceStatus TraceCallback() {
+		switch (Results.HitType) {
+			case TRACE_HitFloor:
+			case TRACE_HitCeiling:
+				return TRACE_Stop;
+			
+			case TRACE_HitActor:
+				if (Results.HitActor.bShootable && IgnoreActors.Find(Results.HitActor) == IgnoreActors.Size())
+					return TRACE_Stop;
+				else
+					break;
+			
+			case TRACE_HitWall:
+				if (Results.HitLine.flags & (Line.ML_BLOCKEVERYTHING | Line.ML_BLOCKUSE) || Results.Tier != TIER_Middle)
+					return TRACE_Stop;
+		}
+		
+		return TRACE_Skip;
+	}
+}
+
 class U2P_PlayerState : Thinker {
 	const HighlightFOV = 25.;
 	const PushCooldownTics = 15;
@@ -359,9 +383,11 @@ class U2P_PlayerState : Thinker {
 			return false;
 		
 		// Is there anything in the way?
-		FTranslatedLineTarget trace;
-		viewer.AimLineAttack(anglesTo.X, distTo, trace, target: target);
-		if (trace.linetarget && trace.linetarget != target)
+		let trace = new("U2P_ItemReachabilityTracer");
+		trace.IgnoreActors.Resize(2);
+		trace.IgnoreActors[0] = viewer;
+		trace.IgnoreActors[1] = target;
+		if (trace.Trace(viewPos, viewer.CurSector, dirTo, distTo, 0))
 			return false;
 		
 		// All checks pass!
