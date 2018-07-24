@@ -383,24 +383,23 @@ struct U2P_ActorAdjustedGeometry {
 		Height = a.Height;
 		Radius = a.Radius;
 		
-		if (naive)
-			return;
-		
-		TextureID tex;
-		bool flipped;
-		Vector2 scale;
-		// TODO: Account for sprite rotation?
-		[tex, flipped, scale] = a.CurState.GetSpriteTexture(0, scale: a.Scale);
-		
-		if (!tex.IsValid())
-			return; // Actor has no visible sprite at all. Not much we can do here.
-		
-		let texSize = TexMan.GetScaledSize(tex);
-		let texOffs = TexMan.GetScaledOffset(tex);
-		
-		Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
-		Height = texSize.Y * scale.Y;
-		Radius = texSize.X * scale.X;
+		if (!naive) {
+			TextureID tex;
+			bool flipped;
+			Vector2 scale;
+			// TODO: Account for sprite rotation?
+			[tex, flipped, scale] = a.CurState.GetSpriteTexture(0, scale: a.Scale);
+			
+			if (!tex.IsValid())
+				return; // Actor has no visible sprite at all. Not much we can do here.
+			
+			let texSize = TexMan.GetScaledSize(tex);
+			let texOffs = TexMan.GetScaledOffset(tex);
+			
+			Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
+			Height = texSize.Y * scale.Y;
+			Radius = texSize.X * scale.X;
+		}
 		
 		if (bobOffset)
 			Pos.Z += a.GetBobOffset();
