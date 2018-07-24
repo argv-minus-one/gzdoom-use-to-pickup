@@ -479,6 +479,11 @@ class U2P_ItemHighlight : Thinker {
 		}
 		
 		if (Target && Target.bSpecial) {
+			if (!CheckedForClassInfo && !ClassInfo) {
+				ClassInfo = UseToPickup.ActorClassInfo(Target.GetClass());
+				CheckedForClassInfo = true;
+			}
+			
 			TargetGeom.Update(Target, ClassInfo, bobOffset: true);
 			
 			if (ClassInfo && ClassInfo.ForceTag) {
@@ -495,11 +500,6 @@ class U2P_ItemHighlight : Thinker {
 					cn
 				);
 				TargetTag = StringTable.Localize(TargetTag);
-			}
-			
-			if (!CheckedForClassInfo && !ClassInfo) {
-				ClassInfo = UseToPickup.ActorClassInfo(Target.GetClass());
-				CheckedForClassInfo = true;
 			}
 		}
 		else {
