@@ -429,12 +429,17 @@ struct U2P_ActorAdjustedGeometry {
 			if (tex.IsValid()) {
 				let texSize = TexMan.GetScaledSize(tex);
 				
-				Height = texSize.Y * scale.Y;
-				Radius = texSize.X * scale.X;
+				let h = texSize.Y * scale.Y;
+				let r = texSize.X * scale.X;
 				
-				if (!classInfo || !classInfo.OverrideZOffset) {
-					let texOffs = TexMan.GetScaledOffset(tex);
-					Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
+				if (h >= 2. && r >= 2.) {
+					Height = h;
+					Radius = r;
+					
+					if (!classInfo || !classInfo.OverrideZOffset) {
+						let texOffs = TexMan.GetScaledOffset(tex);
+						Pos.Z += (texOffs.Y - texSize.Y) * scale.Y;
+					}
 				}
 			}
 		}
