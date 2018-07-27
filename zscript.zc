@@ -252,6 +252,15 @@ class U2P_PlayerState : Thinker {
 	}
 	
 	override void Tick() {
+		if (Player.playerstate != PST_LIVE || Player.bot) {
+			// For dead players (and bots, if a regular player somehow becomes a bot), just clear everything out.
+			ClearFocus();
+			PushCooldown = 0;
+			if (Player.mo)
+				Player.mo.bPickup = GetDefaultByType(Player.mo.GetClass()).bPickup;
+			return;
+		}
+		
 		// Clear the focused item, if appropriate.
 		if (FocusedItem && !FocusedItem.Target)
 			FocusedItem = null;
@@ -263,9 +272,8 @@ class U2P_PlayerState : Thinker {
 		if (!Settings)
 			Settings = U2P_PlayerSettings.Of(Player);
 		
-		// Besides the cvar, don't apply to dead players or bots.
 		let pp = Player.mo;
-		if (Settings.IsEnabled.GetBool() && Player.playerstate == PST_LIVE && !Player.bot) {
+		if (Settings.IsEnabled.GetBool()) {
 			WasEnabled = true;
 			if (pp)
 				pp.bPickup = false;
