@@ -181,6 +181,16 @@ class U2P_ItemReachabilityTracer : LineTracer {
 	}
 }
 
+class U2P_PlayerSettings {
+	CVar IsEnabled;
+	
+	static U2P_PlayerSettings Of(PlayerInfo player) {
+		let s = new("U2P_PlayerSettings");
+		s.IsEnabled = CVar.GetCVar('usetopickup_enabled', Player);
+		return s;
+	}
+}
+
 class U2P_PlayerState : Thinker {
 	const HighlightFOV = 25.;
 	const PushCooldownTics = 15;
@@ -189,8 +199,8 @@ class U2P_PlayerState : Thinker {
 	PlayerInfo Player;
 	int PlayerNum;
 	uint8 SelectPhase;
-	transient bool IsEnabled;
-	transient CVar IsEnabledCVar;
+	transient U2P_PlayerSettings Settings;
+	transient bool WasEnabled;
 	transient private uint8 PushCooldown;
 	
 	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
@@ -245,24 +255,24 @@ class U2P_PlayerState : Thinker {
 			PushCooldown--;
 		
 		// Update enabled status, PICKUP flag, etc.
-		if (!IsEnabledCVar)
-			IsEnabledCVar = CVar.GetCVar('usetopickup_enabled', Player);
+		if (!Settings)
+			Settings = U2P_PlayerSettings.Of(Player);
 		
 		// Besides the cvar, don't apply to dead players or bots.
 		let pp = Player.mo;
-		if (IsEnabledCVar.GetBool() && Player.playerstate == PST_LIVE && !Player.bot) {
-			IsEnabled = true;
+		if (Settings.IsEnabled.GetBool() && Player.playerstate == PST_LIVE && !Player.bot) {
+			WasEnabled = true;
 			if (pp)
 				pp.bPickup = false;
 		}
-		else if (IsEnabled) {
-			IsEnabled = false;
+		else if (WasEnabled) {
+			WasEnabled = false;
 			if (pp)
 				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
 			ClearFocus();
 		}
 		
-		if (pp && IsEnabled && !((gametic + SelectPhase) & 3)) {
+		if (pp && WasEnabled && !((gametic + SelectPhase) & 3)) {
 			Inventory origTarget = null, bestTarget = null;
 			U2P_ActorClassInfo bestTargetCI = null;
 			double bestDFC = HighlightFOV;
@@ -303,7 +313,7 @@ class U2P_PlayerState : Thinker {
 		
 		// Check if the player is allowed to pick up the focused item.
 		if (
-			IsEnabled &&
+			WasEnabled &&
 			pp &&
 			FocusedItem &&
 			FocusedItem.Target &&
