@@ -56,6 +56,11 @@ class UseToPickup : StaticEventHandler {
 	
 	override void PlayerEntered(PlayerEvent evt) {
 		let p = evt.PlayerNumber;
+		
+		// Don't apply to bots.
+		if (players[p].bot)
+			return;
+		
 		if (!PlayerStates[p])
 			PlayerStates[p] = new("U2P_PlayerState");
 		PlayerStates[p].Init(players[p], p);
