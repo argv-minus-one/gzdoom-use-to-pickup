@@ -208,6 +208,9 @@ class U2P_PlayerState : Thinker {
 	transient private uint8 PushCooldown;
 	
 	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
+		// Tick before U2P_ItemHighlight does.
+		ChangeStatNum(STAT_USER);
+		
 		self.Player = player;
 		self.PlayerNum = playerNum;
 		
@@ -498,6 +501,9 @@ class U2P_ItemHighlight : Thinker {
 	String TargetTag;
 	
 	U2P_ItemHighlight Init(U2P_PlayerState ps, Inventory target, U2P_ActorClassInfo classInfo = null) {
+		// Tick after U2P_PlayerState does.
+		ChangeStatNum(STAT_USER+1);
+		
 		self.ps = ps;
 		self.Target = target;
 		TweenChange = FadeInRate;
