@@ -186,13 +186,14 @@ class U2P_ItemReachabilityTracer : LineTracer {
 	}
 }
 
+// There should always be exactly one instance of this class for every instance of U2P_PlayerState.
+// It's a separate class because CVars, and therefore U2P_PlayerSettings, have a different lifecycle (they aren't saved, and are reinitialized on loading a save) than U2P_PlayerState (which is saved).
 class U2P_PlayerSettings {
 	CVar IsEnabled;
 	
-	static U2P_PlayerSettings Of(PlayerInfo player) {
-		let s = new("U2P_PlayerSettings");
-		s.IsEnabled = CVar.GetCVar('usetopickup_enabled', Player);
-		return s;
+	U2P_PlayerSettings Init(PlayerInfo player) {
+		IsEnabled = CVar.GetCVar('usetopickup_enabled', Player);
+		return self;
 	}
 }
 
@@ -254,6 +255,9 @@ class U2P_PlayerState : Thinker {
 	}
 	
 	override void Tick() {
+		if (!Settings)
+			Settings = new('U2P_PlayerSettings').Init(Player);
+		
 		if (Player.playerstate != PST_LIVE || Player.bot) {
 			// For dead players (and bots, if a regular player somehow becomes a bot), just clear everything out.
 			ClearFocus();
@@ -269,10 +273,6 @@ class U2P_PlayerState : Thinker {
 		
 		if (PushCooldown)
 			PushCooldown--;
-		
-		// Update enabled status, PICKUP flag, etc.
-		if (!Settings)
-			Settings = U2P_PlayerSettings.Of(Player);
 		
 		let pp = Player.mo;
 		let enabled = Settings.IsEnabled.GetBool();
