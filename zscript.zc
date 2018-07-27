@@ -318,7 +318,7 @@ class U2P_PlayerState : Thinker {
 			
 			if (bestTarget && bestTarget != origTarget)
 				// Got a new target to focus on.
-				FocusedItem = new("U2P_ItemHighlight").Init(Player, bestTarget, bestTargetCI);
+				FocusedItem = new("U2P_ItemHighlight").Init(self, bestTarget, bestTargetCI);
 		}
 		
 		// Check if the player is allowed to pick up the focused item.
@@ -485,8 +485,8 @@ class U2P_ItemHighlight : Thinker {
 	const FadeInRate = float(.14);
 	const FadeOutRate = float(-.07);
 	
+	U2P_PlayerState ps;
 	Inventory Target;
-	PlayerInfo Player;
 	float Tween;
 	protected float TweenChange;
 	transient U2P_ActorClassInfo ClassInfo;
@@ -497,8 +497,8 @@ class U2P_ItemHighlight : Thinker {
 	U2P_ActorAdjustedGeometry TargetGeom;
 	String TargetTag;
 	
-	U2P_ItemHighlight Init(PlayerInfo player, Inventory target, U2P_ActorClassInfo classInfo = null) {
-		self.Player = player;
+	U2P_ItemHighlight Init(U2P_PlayerState ps, Inventory target, U2P_ActorClassInfo classInfo = null) {
+		self.ps = ps;
 		self.Target = target;
 		TweenChange = FadeInRate;
 		self.ClassInfo = classInfo;
@@ -506,12 +506,12 @@ class U2P_ItemHighlight : Thinker {
 	}
 	
 	override void Tick() {
-		if (!Player) {
+		if (!ps || !ps.Player) {
 			Destroy();
 			return;
 		}
 		
-		switch (Player.playerstate) {
+		switch (ps.Player.playerstate) {
 			case PST_DEAD:
 			case PST_REBORN:
 				// If player is dead, fade out.
@@ -588,14 +588,14 @@ class U2P_ItemHighlight : Thinker {
 	ui void Draw(U2P_DrawContext dc) {
 		// Don't actually draw anything for anyone other than the console player.
 		// Note that these highlighters have playsim effects too, so they still exist for other players; they just aren't drawn.
-		if (Player != players[consoleplayer])
+		if (ps.PlayerNum != consoleplayer)
 			return;
 		
 		// Don't bother drawing anything if opacity is zero!
 		if (Tween <= 0.)
 			return;
 		
-		switch (Player.playerstate) {
+		switch (ps.Player.playerstate) {
 			case PST_ENTER:
 			case PST_GONE:
 				// Similarly, if the owning player isn't in the game, don't draw anything.
