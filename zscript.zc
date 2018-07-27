@@ -189,10 +189,12 @@ class U2P_ItemReachabilityTracer : LineTracer {
 // There should always be exactly one instance of this class for every instance of U2P_PlayerState.
 // It's a separate class because CVars, and therefore U2P_PlayerSettings, have a different lifecycle (they aren't saved, and are reinitialized on loading a save) than U2P_PlayerState (which is saved).
 class U2P_PlayerSettings {
-	CVar IsEnabled;
+	CVar IsEnabled, HighlightColor, HighlightOpacity;
 	
 	U2P_PlayerSettings Init(PlayerInfo player) {
 		IsEnabled = CVar.GetCVar('usetopickup_enabled', Player);
+		HighlightColor = CVar.GetCVar('usetopickup_highlight_color', Player);
+		HighlightOpacity = CVar.GetCVar('usetopickup_highlight_opacity', Player);
 		return self;
 	}
 }
@@ -580,11 +582,8 @@ class U2P_ItemHighlight : Thinker {
 			TweenChange = FadeOutRate;
 	}
 	
-	const TextColor_Description = Font.CR_WHITE;
 	const TextColor_KeyBind = Font.CR_GRAY;
-	const TextColor_PressToUseMsg = Font.CR_WHITE;
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
-	const BracketColor = Color(0xffffffff);
 	const BracketTexName = "UseToPickup/bracket.png";
 	private transient ui TextureID BracketTex;
 	
@@ -592,13 +591,15 @@ class U2P_ItemHighlight : Thinker {
 	const ScaleBase = 4000.;
 	
 	ui void Draw(U2P_DrawContext dc) {
-		// Don't actually draw anything for anyone other than the console player.
-		// Note that these highlighters have playsim effects too, so they still exist for other players; they just aren't drawn.
-		if (ps.PlayerNum != consoleplayer)
-			return;
-		
-		// Don't bother drawing anything if opacity is zero!
-		if (Tween <= 0.)
+		if (
+			// Don't actually draw anything for anyone other than the console player.
+			// Note that these highlighters have playsim effects too, so they still exist for other players; they just aren't drawn.
+			ps.PlayerNum != consoleplayer ||
+			// Don't bother drawing anything if opacity is zero!
+			Tween <= 0. ||
+			// If U2P_PlayerSettings hasn't been reinitialized yet, wait for that to happen.
+			!ps.Settings
+		)
 			return;
 		
 		switch (ps.Player.playerstate) {
@@ -614,6 +615,9 @@ class U2P_ItemHighlight : Thinker {
 			if (!BracketTex.IsValid())
 				ThrowAbortException("%s can't find required texture %s!", GetClassName(), BracketTexName);
 		}
+		
+		Color highlightColor = ps.Settings.HighlightColor.GetInt() | 0xff000000;
+		let opacity = clamp(ps.Settings.HighlightOpacity.GetFloat(), 0., 1.) * Tween;
 		
 		// Top left, bottom right
 		Vector2 screenCoord[2];
@@ -674,7 +678,9 @@ class U2P_ItemHighlight : Thinker {
 				screenCoord[corner & 1].X - (corner & 1? texSize.X : 0.),
 				// (2 & 2) = 2, but we need 0 or 1. !! gives us that.
 				screenCoord[!!(corner & 2)].Y - (corner & 2? texSize.Y : 0),
-				DTA_Alpha, Tween,
+				DTA_Alpha, opacity,
+				DTA_AlphaChannel, true,
+				DTA_FillColor, highlightColor,
 				DTA_FlipX, corner & 1,
 				DTA_FlipY, !!(corner & 2),
 				DTA_DestWidthF, texSize.X,
@@ -690,12 +696,13 @@ class U2P_ItemHighlight : Thinker {
 		);
 		
 		Screen.DrawText(
-			dc.MsgFont, TextColor_Description,
+			dc.MsgFont, Font.CR_WHITE,
 			textCoord.X, textCoord.Y,
 			TargetTag,
 			DTA_TextLen, int(TargetTag.Length() * Tween),
-			DTA_Alpha, Tween,
-			DTA_CleanNoMove, true
+			DTA_Alpha, opacity,
+			DTA_CleanNoMove, true,
+			DTA_Color, highlightColor
 		);
 		
 		textCoord.Y += fontHeight * 1.8;
@@ -713,7 +720,7 @@ class U2P_ItemHighlight : Thinker {
 			
 			Screen.Dim(
 				BackgroundColor_KeyBind,
-				Tween,
+				opacity,
 				textCoord.X - borderWidth,
 				textCoord.Y - borderWidth,
 				keyNameWidth + borderWidth + borderWidth,
@@ -721,11 +728,12 @@ class U2P_ItemHighlight : Thinker {
 			);
 			
 			Screen.DrawText(
-				dc.MsgFont, TextColor_KeyBind,
+				dc.MsgFont, Font.CR_WHITE,
 				textCoord.X, textCoord.Y,
 				keyName,
-				DTA_Alpha, Tween,
-				DTA_CleanNoMove, true
+				DTA_Alpha, opacity,
+				DTA_CleanNoMove, true,
+				DTA_Color, highlightColor
 			);
 			
 			// Advance the draw position for the text.
@@ -737,12 +745,13 @@ class U2P_ItemHighlight : Thinker {
 			PickUpText = StringTable.Localize("U2P_PickUpText", prefixed: false);
 		
 		Screen.DrawText(
-			dc.MsgFont, TextColor_PressToUseMsg,
+			dc.MsgFont, Font.CR_WHITE,
 			textCoord.X, textCoord.Y,
 			PickUpText,
 			DTA_TextLen, int(PickUpText.Length() * Tween),
-			DTA_Alpha, Tween,
-			DTA_CleanNoMove, true
+			DTA_Alpha, opacity,
+			DTA_CleanNoMove, true,
+			DTA_Color, highlightColor
 		);
 	}
 }

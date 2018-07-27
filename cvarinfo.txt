@@ -1,2 +1,4 @@
 server bool usetopickup_fulluserange = true;
 user bool usetopickup_enabled = true;
+user color usetopickup_highlight_color = "ff ff ff";
+user float usetopickup_highlight_opacity = 1;
