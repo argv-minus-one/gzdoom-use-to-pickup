@@ -205,7 +205,6 @@ class U2P_PlayerState : Thinker {
 	int PlayerNum;
 	uint8 SelectPhase;
 	transient U2P_PlayerSettings Settings;
-	transient bool WasEnabled;
 	transient private uint8 PushCooldown;
 	
 	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
@@ -273,19 +272,17 @@ class U2P_PlayerState : Thinker {
 			Settings = U2P_PlayerSettings.Of(Player);
 		
 		let pp = Player.mo;
-		if (Settings.IsEnabled.GetBool()) {
-			WasEnabled = true;
-			if (pp)
-				pp.bPickup = false;
-		}
-		else if (WasEnabled) {
-			WasEnabled = false;
-			if (pp)
-				pp.bPickup = GetDefaultByType(pp.GetClass()).bPickup;
-			ClearFocus();
-		}
+		let enabled = Settings.IsEnabled.GetBool();
 		
-		if (pp && WasEnabled && !((gametic + SelectPhase) & 3)) {
+		// Block normal pickup, if appropriate.
+		if (pp)
+			pp.bPickup = enabled? false : GetDefaultByType(pp.GetClass()).bPickup;
+		
+		// Clear the focused item, if appropriate.
+		if (!enabled || (FocusedItem && !FocusedItem.Target))
+			ClearFocus();
+		
+		if (pp && enabled && !((gametic + SelectPhase) & 3)) {
 			Inventory origTarget = null, bestTarget = null;
 			U2P_ActorClassInfo bestTargetCI = null;
 			double bestDFC = HighlightFOV;
@@ -326,7 +323,7 @@ class U2P_PlayerState : Thinker {
 		
 		// Check if the player is allowed to pick up the focused item.
 		if (
-			WasEnabled &&
+			enabled &&
 			pp &&
 			FocusedItem &&
 			FocusedItem.Target &&
