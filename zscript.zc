@@ -582,7 +582,6 @@ class U2P_ItemHighlight : Thinker {
 			TweenChange = FadeOutRate;
 	}
 	
-	const TextColor_KeyBind = Font.CR_GRAY;
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
 	const BracketTexName = "UseToPickup/bracket.png";
 	private transient ui TextureID BracketTex;
