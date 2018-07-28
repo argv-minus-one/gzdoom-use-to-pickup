@@ -30,6 +30,16 @@ Toggles on/off the functionality of this mod.
 
 This is a client-side option. In multiplayer games, players may independently decide whether they want to use this, or use the vanilla pickup behavior.
 
+### Item bracket color & item bracket opacity
+
+When an item is highlighted by this mod, brackets are drawn around it, and a textual label is drawn under it. These control the color and opacity of the brackets and label.
+
+Opacity is given as a value between 0 and 1, where 0 is completely invisible and 1 is completely opaque. For example, setting this to 0.5 will result in the brackets and label being only 50% opaque.
+
+### Fade-in time & fade-out time
+
+When you look at an item, the brackets and labels around it will fade in for a moment. Similarly, when you look away, the brackets and labels will fade out. These options control how long, in seconds, the fade in/out animation lasts.
+
 ### Toggle Enabled
 
 A key binding for toggling the mod on/off. This also appears in the “Customize Controls” menu.
