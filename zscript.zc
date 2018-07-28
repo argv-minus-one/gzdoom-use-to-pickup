@@ -120,7 +120,8 @@ class UseToPickup : StaticEventHandler {
 		'usetopickup_highlight_opacity',
 		'usetopickup_fadeintime',
 		'usetopickup_fadeouttime',
-		'usetopickup_fulluserange'
+		'usetopickup_fulluserange',
+		'usetopickup_pickupdelay'
 	};
 	
 	override void ConsoleProcess(ConsoleEvent evt) {
@@ -204,7 +205,7 @@ class U2P_ItemReachabilityTracer : LineTracer {
 // There should always be exactly one instance of this class for every instance of U2P_PlayerState.
 // It's a separate class because CVars, and therefore U2P_PlayerSettings, have a different lifecycle (they aren't saved, and are reinitialized on loading a save) than U2P_PlayerState (which is saved).
 class U2P_PlayerSettings {
-	CVar IsEnabled, HighlightColor, HighlightOpacity, FadeInTime, FadeOutTime;
+	CVar IsEnabled, HighlightColor, HighlightOpacity, FadeInTime, FadeOutTime, PickupDelay;
 	
 	U2P_PlayerSettings Init(PlayerInfo player) {
 		IsEnabled = CVar.GetCVar('usetopickup_enabled', Player);
@@ -212,6 +213,7 @@ class U2P_PlayerSettings {
 		HighlightOpacity = CVar.GetCVar('usetopickup_highlight_opacity', Player);
 		FadeInTime = CVar.GetCVar('usetopickup_fadeintime', Player);
 		FadeOutTime = CVar.GetCVar('usetopickup_fadeouttime', Player);
+		PickupDelay = CVar.GetCVar('usetopickup_pickupdelay', Player);
 		return self;
 	}
 }
@@ -225,7 +227,7 @@ class U2P_PlayerState : Thinker {
 	int PlayerNum;
 	uint8 SelectPhase;
 	transient U2P_PlayerSettings Settings;
-	transient private uint8 PushCooldown;
+	transient private uint8 PushCooldown, PickupDelay;
 	
 	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
 		// Tick before U2P_ItemHighlight does.
@@ -292,6 +294,8 @@ class U2P_PlayerState : Thinker {
 		
 		if (PushCooldown)
 			PushCooldown--;
+		if (PickupDelay)
+			PickupDelay--;
 		
 		let pp = Player.mo;
 		let enabled = Settings.IsEnabled.GetBool();
@@ -338,18 +342,20 @@ class U2P_PlayerState : Thinker {
 				ClearFocus();
 			}
 			
-			if (bestTarget && bestTarget != origTarget)
+			if (bestTarget && bestTarget != origTarget) {
 				// Got a new target to focus on.
 				FocusedItem = new("U2P_ItemHighlight").Init(self, bestTarget, bestTargetCI);
+				PickupDelay = clamp(uint(Settings.PickupDelay.GetFloat() * TICRATE + .5), 0, 255);
+			}
 		}
 		
 		// Check if the player is allowed to pick up the focused item.
 		if (
 			enabled &&
 			pp &&
+			!PickupDelay &&
 			FocusedItem &&
-			FocusedItem.Target &&
-			FocusedItem.Tween == 1.
+			FocusedItem.Target
 		) {
 			// If so, then block the usual effects of the use button.
 			Player.usedown = true;

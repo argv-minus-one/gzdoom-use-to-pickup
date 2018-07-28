@@ -40,6 +40,10 @@ Opacity is given as a value between 0 and 1, where 0 is completely invisible and
 
 When you look at an item, the brackets and labels around it will fade in for a moment. Similarly, when you look away, the brackets and labels will fade out. These options control how long, in seconds, the fade in/out animation lasts.
 
+### Delay before allowing pickup
+
+When you look at an item, there's a slight delay before you can actually pick it up. That's to help protect you from accidentally picking up the wrong item. This lets you adjust how long that delay is, in seconds. Set to 0 to turn this feature off.
+
 ### Toggle Enabled
 
 A key binding for toggling the mod on/off. This also appears in the “Customize Controls” menu.
