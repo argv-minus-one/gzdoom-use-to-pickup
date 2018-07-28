@@ -21,4 +21,6 @@ OptionMenu "UseToPickupOptions" {
 	StaticText ""
 	Control "$U2P_KeyBindMenu_EnableToggle", "toggle usetopickup_enabled"
 	Control "$U2P_KeyBindMenu_Push", "usetopickup_push"
+	StaticText ""
+	SafeCommand "$OPTMNU_DEFAULTS", "event UseToPickup_ResetAllCVars", "$U2P_OptionsMenu_ResetDefaultConfirm"
 }

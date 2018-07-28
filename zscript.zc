@@ -113,6 +113,21 @@ class UseToPickup : StaticEventHandler {
 			ps.PushFocusedItem();
 		}
 	}
+	
+	static const Name CVarNames[] = {
+		'usetopickup_enabled',
+		'usetopickup_highlight_color',
+		'usetopickup_highlight_opacity',
+		'usetopickup_fadeintime',
+		'usetopickup_fadeouttime',
+		'usetopickup_fulluserange'
+	};
+	
+	override void ConsoleProcess(ConsoleEvent evt) {
+		if (evt.Name == "UseToPickup_ResetAllCVars")
+		for (let i = 0, s = CVarNames.Size(); i < s; i++)
+			CVar.FindCVar(CVarNames[i]).ResetToDefault();
+	}
 }
 
 class U2P_ActorClassInfo {
