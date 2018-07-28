@@ -641,7 +641,8 @@ class U2P_ItemHighlight : Thinker {
 		}
 		
 		Color highlightColor = ps.Settings.HighlightColor.GetInt() | 0xff000000;
-		let opacity = clamp(ps.Settings.HighlightOpacity.GetFloat(), 0., 1.) * Tween;
+		let fracTween = Tween + TweenChange * dc.FracTic;
+		let opacity = clamp(ps.Settings.HighlightOpacity.GetFloat(), 0., 1.) * fracTween;
 		
 		// Top left, bottom right
 		Vector2 screenCoord[2];
@@ -723,7 +724,7 @@ class U2P_ItemHighlight : Thinker {
 			dc.MsgFont, Font.CR_WHITE,
 			textCoord.X, textCoord.Y,
 			TargetTag,
-			DTA_TextLen, int(TargetTag.Length() * Tween),
+			DTA_TextLen, int(TargetTag.Length() * fracTween),
 			DTA_Alpha, opacity,
 			DTA_CleanNoMove, true,
 			DTA_Color, highlightColor
@@ -772,7 +773,7 @@ class U2P_ItemHighlight : Thinker {
 			dc.MsgFont, Font.CR_WHITE,
 			textCoord.X, textCoord.Y,
 			PickUpText,
-			DTA_TextLen, int(PickUpText.Length() * Tween),
+			DTA_TextLen, int(PickUpText.Length() * fracTween),
 			DTA_Alpha, opacity,
 			DTA_CleanNoMove, true,
 			DTA_Color, highlightColor
