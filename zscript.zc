@@ -284,7 +284,7 @@ class U2P_PlayerState : Thinker {
 			pp.bPickup = enabled? false : GetDefaultByType(pp.GetClass()).bPickup;
 		
 		// Clear the focused item, if appropriate.
-		if (!enabled || (FocusedItem && !FocusedItem.Target))
+		if (!enabled || (FocusedItem && (!FocusedItem.Target || !FocusedItem.Target.bSpecial)))
 			ClearFocus();
 		
 		if (pp && enabled && !((gametic + SelectPhase) & 3)) {
