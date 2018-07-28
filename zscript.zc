@@ -600,10 +600,8 @@ class U2P_ItemHighlight : Thinker {
 			
 			// Avoid division by zero.
 			// Division by zero would actually yield correct results (positive infinity), but the engine crashes instead of passing such a value through, so we have to special-case it.
-			if (time <= 0.)
-				TweenChange = 1;
-			else
-				TweenChange = 1. / (time * TICRATE);
+			// Inspired by AFADoomer: https://forum.zdoom.org/posting.php?mode=reply&f=18&t=61454#pr1065822
+			TweenChange = 1. / (max(time, double.epsilon) * TICRATE);
 			
 			if (HighlightState == FADING_OUT)
 				TweenChange = -TweenChange;
