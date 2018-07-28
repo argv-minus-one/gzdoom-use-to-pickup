@@ -14,6 +14,8 @@ OptionMenu "UseToPickupOptions" {
 	Option "$U2P_OptionsMenu_Enable", "usetopickup_enabled", "YesNo"
 	ColorPicker "$U2P_OptionsMenu_HighlightColor", "usetopickup_highlight_color"
 	Slider "$U2P_OptionsMenu_HighlightOpacity", "usetopickup_highlight_opacity", 0, 1, 0.125, 3
+	Slider "$U2P_OptionsMenu_FadeInTime", "usetopickup_fadeintime", 0, 2, 0.1, 1
+	Slider "$U2P_OptionsMenu_FadeOutTime", "usetopickup_fadeouttime", 0, 2, 0.1, 1
 	StaticText ""
 	StaticText "$OPTMNU_CONTROLS", "Gold"
 	StaticText ""

@@ -2,3 +2,5 @@ server bool usetopickup_fulluserange = true;
 user bool usetopickup_enabled = true;
 user color usetopickup_highlight_color = "ff ff ff";
 user float usetopickup_highlight_opacity = 1;
+user float usetopickup_fadeintime = .2;
+user float usetopickup_fadeouttime = .4;
