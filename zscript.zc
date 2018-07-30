@@ -5,14 +5,14 @@ Version "3.4"
 #include "U2P_Gutamatics/Include.zsc"
 
 class UseToPickup : StaticEventHandler {
-	U2P_PlayerState PlayerStates[MAXPLAYERS];
 	Font MsgFont;
-	private ThinkerIterator Drawables;
+	private ThinkerIterator PlayerStates, Drawables;
 	private Array<U2P_ActorClassInfo> ClassInfo;
 	
 	override void OnRegister() {
 		MsgFont = Font.FindFont('SMALLFONT');
 		Drawables = ThinkerIterator.Create('U2P_ItemHighlight');
+		PlayerStates = ThinkerIterator.Create('U2P_PlayerState');
 		
 		ClassInfo.Clear();
 		
@@ -34,24 +34,39 @@ class UseToPickup : StaticEventHandler {
 	}
 	
 	override void WorldLoaded(WorldEvent evt) {
-		// This is a StaticEventHandler. It is initialized only on engine startup, and its state is not part of save files. This is useful because it fills in the ClassInfo on engine startup only, but it has the side effect that the PlayerStates array is lost when loading a save! So, we'll iterate over all live U2P_PlayerState instances, and reconstruct our PlayerStates array from that.
-		
-		// But first, we need to clear it out of stale references.
+		// If there are any stale or duplicate U2P_PlayerState objects, clean them up now.
+		// Warn about duplicates; that's a bug.
+		U2P_PlayerState psa[MAXPLAYERS];
 		for (let i = 0; i < MAXPLAYERS; i++)
-			PlayerStates[i] = null;
+			psa[i] = null;
 		
-		let i = ThinkerIterator.Create('U2P_PlayerState');
 		U2P_PlayerState ps;
-		while (ps = U2P_PlayerState(i.Next())) {
+		for (PlayerStates.Reinit(); ps = U2P_PlayerState(PlayerStates.Next());)
+		{
 			let p = ps.PlayerNum;
 			
-			if (PlayerStates[p]) {
+			if (!playeringame[p])
+			{
+				// This player is no longer in-game. Disconnected during loading, perhaps?
+				ps.Destroy();
+			}
+			else if (psa[p])
+			{
 				Console.Printf("\cgMultiple U2P_PlayerState instances for player number %d! Deleting one of them.", p);
 				ps.Destroy();
 			}
 			else
-				PlayerStates[p] = ps;
+				psa[p] = ps;
 		}
+	}
+	
+	U2P_PlayerState PlayerStateOf(int p) {
+		U2P_PlayerState ps;
+		for (PlayerStates.Reinit(); ps = U2P_PlayerState(PlayerStates.Next());)
+		if (ps.PlayerNum == p)
+			return ps;
+		
+		return null;
 	}
 	
 	override void PlayerEntered(PlayerEvent evt) {
@@ -61,23 +76,25 @@ class UseToPickup : StaticEventHandler {
 		if (players[p].bot)
 			return;
 		
-		if (!PlayerStates[p])
-			PlayerStates[p] = new("U2P_PlayerState");
-		PlayerStates[p].Init(players[p], p);
+		// Find a U2P_PlayerState for this player.
+		if (!PlayerStateOf(p))
+			// If none exists, create one.
+			new('U2P_PlayerState').Init(players[p], p);
 	}
 	
 	override void PlayerRespawned(PlayerEvent evt) {
-		let p = evt.PlayerNumber;
-		if (PlayerStates[p])
-			PlayerStates[p].ClearFocus();
+		// Clear the focus of the respawning player actor.
+		// This will happen anyway if the player spends at least one tic dead, but just in case…
+		let ps = PlayerStateOf(evt.PlayerNumber);
+		if (ps)
+			ps.ClearFocus();
 	}
 	
 	override void PlayerDisconnected(PlayerEvent evt) {
-		let p = evt.PlayerNumber;
-		if (PlayerStates[p]) {
-			PlayerStates[p].Destroy();
-			PlayerStates[p] = null;
-		}
+		// Find and destroy the U2P_PlayerState for the disconnecting player.
+		let ps = PlayerStateOf(evt.PlayerNumber);
+		if (ps)
+			ps.Destroy();
 	}
 	
 	override void RenderOverlay(RenderEvent evt) {
@@ -107,10 +124,11 @@ class UseToPickup : StaticEventHandler {
 	
 	override void NetworkProcess(ConsoleEvent evt) {
 		if (evt.Name == "UseToPickup_Push") {
-			let ps = PlayerStates[evt.Player];
-			if (!ps)
-				ThrowAbortException("Netevent UseToPickup_Push from nonexistent player %d!", evt.Player);
-			ps.PushFocusedItem();
+			let ps = PlayerStateOf(evt.Player);
+			if (ps)
+				ps.PushFocusedItem();
+			else
+				Console.Printf("\cgNo U2P_PlayerState for player %d!", evt.Player);
 		}
 	}
 	
@@ -125,9 +143,23 @@ class UseToPickup : StaticEventHandler {
 	};
 	
 	override void ConsoleProcess(ConsoleEvent evt) {
-		if (evt.Name == "UseToPickup_ResetAllCVars")
-		for (let i = 0, s = CVarNames.Size(); i < s; i++)
-			CVar.FindCVar(CVarNames[i]).ResetToDefault();
+		if (evt.Name == 'UseToPickup_ResetAllCVars') {
+			for (let i = 0, s = CVarNames.Size(); i < s; i++)
+				CVar.FindCVar(CVarNames[i]).ResetToDefault();
+		}
+		else if (evt.Name == 'UseToPickup_DumpPlayerStates') {
+			U2P_PlayerState ps;
+			for (PlayerStates.Reinit(); ps = U2P_PlayerState(PlayerStates.Next());)
+				Console.Printf(
+					"Player %d (%s): phase %d, focused item %s",
+					ps.PlayerNum,
+					ps.Player.mo? ps.Player.mo.GetClassName() : 'None',
+					ps.SelectPhase,
+					ps.FocusedItem && ps.FocusedItem.Target?
+						ps.FocusedItem.Target.GetClassName()
+						: 'None'
+				);
+		}
 	}
 }
 
