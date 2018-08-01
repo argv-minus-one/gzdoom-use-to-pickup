@@ -226,7 +226,11 @@ class U2P_ItemReachabilityTracer : LineTracer {
 					break;
 			
 			case TRACE_HitWall:
-				if (Results.HitLine.flags & (Line.ML_BLOCKEVERYTHING | Line.ML_BLOCKUSE) || Results.Tier != TIER_Middle)
+				if (
+					!(Results.HitLine.flags & Line.ML_TWOSIDED) ||
+					Results.HitLine.flags & (Line.ML_BLOCKEVERYTHING | Line.ML_BLOCKUSE) ||
+					Results.Tier != TIER_Middle
+				)
 					return TRACE_Stop;
 		}
 		
