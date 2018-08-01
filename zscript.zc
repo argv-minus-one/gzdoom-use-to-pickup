@@ -350,7 +350,6 @@ class U2P_PlayerState : Thinker {
 			Inventory origTarget = null, bestTarget = null;
 			U2P_ActorClassInfo bestTargetCI = null;
 			double bestDFC = HighlightFOV;
-			bool valid;
 			
 			// Check the current focused item.
 			if (FocusedItem) {
