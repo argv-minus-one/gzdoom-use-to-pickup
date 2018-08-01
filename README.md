@@ -14,7 +14,7 @@ There will probably be conflicts with some other mods. Be sure to open an issue 
 
 ## Options
 
-This mod adds a submenu to the bottom of the Options menu. There are three settings:
+This mod adds a submenu to the bottom of the Options menu. There are several settings:
 
 ### Allow full Use range
 
