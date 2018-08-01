@@ -24,6 +24,12 @@ But there's a problem. Some maps may place an item just outside of reach until y
 
 This is a server-side option. If in a multiplayer game, the setting of the server/host is applied to all players.
 
+### Item scan frequency
+
+Controls how frequently this mod will scan each player's surroundings for items that can be picked up. Normally, it scans on every tic, but setting this to a value other than 1 will stagger out the scans to happen every 2 tics, every 3 tics, etc.
+
+The reason for this setting is performance. Scanning takes a fair bit of CPU time, and this overhead is multiplied by the number of players in the game. In single-player, the default setting of 1 should be fine, but in a large multiplayer game, it will likely slow down the game.
+
 ### Enable Mod
 
 Toggles on/off the functionality of this mod.

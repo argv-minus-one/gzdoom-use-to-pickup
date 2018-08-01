@@ -1,4 +1,5 @@
 server bool usetopickup_fulluserange = true;
+server int usetopickup_scanfreq = 1;
 user bool usetopickup_enabled = true;
 user color usetopickup_highlight_color = "ff ff ff";
 user float usetopickup_highlight_opacity = 1;

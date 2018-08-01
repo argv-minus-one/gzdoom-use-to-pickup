@@ -8,6 +8,7 @@ OptionMenu "UseToPickupOptions" {
 	StaticText "$NETMNU_HOSTOPTIONS", "Gold"
 	StaticText ""
 	Option "$U2P_OptionsMenu_FullUseRange", "usetopickup_fulluserange", "YesNo"
+	Slider "$U2P_OptionsMenu_ScanFreq", "usetopickup_scanfreq", 1, 10, 1, 0
 	StaticText ""
 	StaticText "$OPTMNU_PLAYER", "Gold"
 	StaticText ""

@@ -139,7 +139,8 @@ class UseToPickup : StaticEventHandler {
 		'usetopickup_fadeintime',
 		'usetopickup_fadeouttime',
 		'usetopickup_fulluserange',
-		'usetopickup_pickupdelay'
+		'usetopickup_pickupdelay',
+		'usetopickup_scanfreq'
 	};
 	
 	override void ConsoleProcess(ConsoleEvent evt) {
@@ -344,7 +345,8 @@ class U2P_PlayerState : Thinker {
 		if (!enabled || (FocusedItem && (!FocusedItem.Target || !FocusedItem.Target.bSpecial)))
 			ClearFocus();
 		
-		if (pp && enabled && !((gametic + SelectPhase) & 3)) {
+		let scanFreq = max(1, usetopickup_scanfreq);
+		if (pp && enabled && (gametic % scanFreq) == (PlayerNum % scanFreq)) {
 			Inventory origTarget = null, bestTarget = null;
 			U2P_ActorClassInfo bestTargetCI = null;
 			double bestDFC = HighlightFOV;
