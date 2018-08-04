@@ -1,0 +1,244 @@
+class U2P_PlayerState : Thinker {
+	const HighlightFOV = 25.;
+	const PushCooldownTics = 15;
+	
+	U2P_ItemHighlight FocusedItem;
+	PlayerInfo Player;
+	int PlayerNum;
+	uint8 SelectPhase;
+	transient U2P_PlayerSettings Settings;
+	transient private uint8 PushCooldown, PickupDelay;
+	transient protected UseToPickup U2P;
+	
+	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
+		// Tick before U2P_ItemHighlight does.
+		ChangeStatNum(STAT_USER);
+		
+		self.Player = player;
+		self.PlayerNum = playerNum;
+		
+		// Target selection runs every 4 tics. In multiplayer with a lot of players, this could result in stuttering, from target selection happening for all of them at the same time (every fourth tic). So, we offset which of every fourth tic to perform target selection on, based on the player number. For example:
+		// Player 0 will select targets on tic 0, 3, 6, …
+		// Player 1 will select targets on tic 1, 4, 7, …
+		// Player 2 will select targets on tic 2, 5, 8, …
+		// Player 4 will select targets on tic 0, 3, 6, …
+		// Player 5 will select targets on tic 1, 4, 7, …
+		SelectPhase = playerNum & 3;
+		
+		Reinit();
+		
+		return self;
+	}
+	
+	// Called on WorldLoaded events, which happen when entering a map or loading a save. Take this opportunity to refill transient data, as needed.
+	void Reinit() {
+		if (!Settings)
+			Settings = new('U2P_PlayerSettings').Init(Player);
+		
+		if (!U2P)
+			U2P = UseToPickup.Get();
+	}
+	
+	void ClearFocus() {
+		if (FocusedItem) {
+			FocusedItem.FadeOut();
+			FocusedItem = null;
+		}
+	}
+	
+	override void OnDestroy() {
+		if (FocusedItem)
+			FocusedItem.Destroy();
+	}
+	
+	void PushFocusedItem() {
+		if (PushCooldown || !FocusedItem)
+			return;
+		
+		let item = FocusedItem.Target;
+		if (!item || !item.bSpecial)
+			return;
+		
+		let pp = Player.mo;
+		if (!pp)
+			return;
+		
+		item.Thrust(1, pp.AngleTo(item));
+		PushCooldown = PushCooldownTics;
+	}
+	
+	// Apologies for the humongous do-everything function, but this is all done in one place as an optimization. ZScript has a high performance penalty for function calls, and this function runs in a fairly tight loop (once per tic, or 35 times per second).
+	override void Tick() {
+		if (Player.playerstate != PST_LIVE || Player.bot) {
+			// For dead players (and bots, if a regular player somehow becomes a bot), just clear everything out.
+			ClearFocus();
+			PushCooldown = 0;
+			if (Player.mo)
+				Player.mo.bPickup = GetDefaultByType(Player.mo.GetClass()).bPickup;
+			return;
+		}
+		
+		// Clear the focused item, if appropriate.
+		if (FocusedItem && !FocusedItem.Target)
+			FocusedItem = null;
+		
+		if (PushCooldown)
+			PushCooldown--;
+		if (PickupDelay)
+			PickupDelay--;
+		
+		let pp = Player.mo;
+		let enabled = Settings.IsEnabled.GetBool();
+		
+		// Block normal pickup, if appropriate.
+		if (pp)
+			pp.bPickup = enabled? false : GetDefaultByType(pp.GetClass()).bPickup;
+		
+		// Clear the focused item, if appropriate.
+		if (!enabled || (FocusedItem && (!FocusedItem.Target || !FocusedItem.Target.bSpecial)))
+			ClearFocus();
+		
+		let scanFreq = max(1, usetopickup_scanfreq);
+		if (pp && enabled && (gametic % scanFreq) == (PlayerNum % scanFreq)) {
+			// Search for items nearby.
+			Inventory bestTarget = null;
+			U2P_ActorClassInfo bestTargetCI = null;
+			double bestDFC = HighlightFOV;
+			let viewPos = pp.Pos;
+			
+			if (pp.player)
+				viewPos.Z = pp.player.viewz;
+			else
+				viewPos.Z += pp.Height / 2.;
+			
+			let viewPosOfs = viewPos - pp.Pos;
+			
+			BlockThingsIterator i;
+			double range;
+			bool range3D;
+			
+			if (usetopickup_fulluserange) {
+				let pp_ = PlayerPawn(pp);
+				// Search for items in a sphere around the viewpoint.
+				range = max(
+					pp_? pp_.UseRange : 0.,
+					pp.Radius,
+					pp.Height
+				);
+				range3D = true;
+				i = BlockThingsIterator.CreateFromPos(viewPos.X, viewPos.Y, viewPos.Z, range, range, false);
+			}
+			else {
+				// Search only for items directly touching the actor.
+				range = 0;
+				range3D = false;
+				i = BlockThingsIterator.Create(pp);
+			}
+			
+			// Look for the item that's closest to the center of the player actor's field of view.
+			// Also, look for any items that should always be picked up on touch.
+			while (i.Next()) {
+				let item = Inventory(i.thing);
+				if (!item || !item.bSpecial)
+					continue;
+				
+				// Doom actors are not cylindrical but square shaped. One must check the XY axes separately to determine whether they're touching.
+				// https://forum.zdoom.org/viewtopic.php?f=122&t=61508&p=1066932#p1066643
+				bool touching =
+					pp.Pos.X + pp.Radius >= item.Pos.X - item.Radius &&
+					pp.Pos.X - pp.Radius <= item.Pos.X + item.Radius &&
+					pp.Pos.Y + pp.Radius >= item.Pos.Y - item.Radius &&
+					pp.Pos.Y - pp.Radius <= item.Pos.Y + item.Radius &&
+					pp.Pos.Z             <= item.Pos.Z + item.Height &&
+					pp.Pos.Z + pp.Height >= item.Pos.Z;
+				
+				let ci = U2P.ActorClassInfo(item.GetClass());
+				
+				if (ci && ci.AlwaysTouchPickup) {
+					// For items that can only be picked up by touch, just check if they're touching.
+					if (touching)
+						item.Touch(pp);
+					// Ignore them otherwise.
+				}
+				else {
+					// For everything else, check how close it is to the center of the player's view.
+					U2P_ActorAdjustedGeometry itemGeom;
+					itemGeom.Update(item, ci);
+					
+					let vecTo = level.Vec3Diff(viewPos, itemGeom.CenterPos);
+					let distTo = vecTo.Length();
+					
+					// Is the item closer to the center of the player's view?
+					let dirTo = vecTo.Unit();
+					let anglesTo = (
+						atan2(dirTo.Y, dirTo.X),
+						-asin(dirTo.Z)
+					);
+					let viewDA = (
+						Actor.deltaangle(anglesTo.X, pp.Angle),
+						Actor.deltaangle(anglesTo.Y, pp.Pitch)
+					);
+					let dfc = viewDA.Length();
+					
+					if (dfc >= bestDFC)
+						continue;
+					
+					if (!touching) {
+						// If fulluserange is enabled, items can be picked up without touching them.
+						if (range3D) {
+							// Is it close enough?
+							if (distTo > range)
+								continue;
+							
+							// Is anything in the way?
+							let trace = new('U2P_ItemReachabilityTracer');
+							trace.IgnoreActors.Resize(2);
+							trace.IgnoreActors[0] = pp;
+							trace.IgnoreActors[1] = item;
+							if (trace.Trace(viewPos, pp.CurSector, dirTo, distTo, 0))
+								continue;
+						}
+						// Otherwise, one must touch the item in order to pick it up.
+						else
+							continue;
+					}
+					
+					// All checks pass!
+					bestTarget = item;
+					bestTargetCI = ci;
+					bestDFC = dfc;
+				}
+			}
+			
+			if (FocusedItem && (!bestTarget || bestTarget != FocusedItem.Target)) {
+				// We're now focusing on something other than what's currently focused (either nothing or a different actor), so clear the current focus.
+				ClearFocus();
+			}
+			
+			if (bestTarget && !FocusedItem) {
+				// Got a new target to focus on. (FocusedItem will be non-null iff the target hasn't changed.)
+				FocusedItem = new('U2P_ItemHighlight').Init(self, bestTarget, bestTargetCI);
+				PickupDelay = clamp(uint(Settings.PickupDelay.GetFloat() * TICRATE + .5), 0, 255);
+			}
+		}
+		
+		// Check if the player is allowed to pick up the focused item.
+		if (
+			enabled &&
+			pp &&
+			!PickupDelay &&
+			FocusedItem &&
+			FocusedItem.Target
+		) {
+			// If so, then block the usual effects of the use button.
+			Player.usedown = true;
+			
+			// Check if the player wants to pick up the item.
+			if (
+				(Player.cmd.buttons & BT_USE) &&
+				!(Player.oldbuttons & BT_USE)
+			)
+				FocusedItem.Target.Touch(pp);
+		}
+	}
+}
