@@ -118,6 +118,7 @@ class U2P_ItemHighlight : Thinker {
 	}
 	
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
+	const BracketSpreadDistance = 0.2;
 	
 	// Scale the brackets such that they're drawn 1:1 on a screen whose min(width,height) is this many pixels.
 	const ScaleBase = 4000.;
@@ -191,6 +192,16 @@ class U2P_ItemHighlight : Thinker {
 			screenCoord[0].Y = min(screenCoord[0].Y, centerCoord.Y - texSize.Y);
 			screenCoord[1].X = max(screenCoord[1].X, centerCoord.X + texSize.X);
 			screenCoord[1].Y = max(screenCoord[1].Y, centerCoord.Y + texSize.Y);
+		}
+		
+		// Spread out the brackets a little further when fading in/out.
+		if (fracTween < 1.) {
+			let cornerAdds = (screenCoord[1] - screenCoord[0]) * .5 * ((1. - fracTween) * BracketSpreadDistance);
+			let cornerAdd = min(cornerAdds.X, cornerAdds.Y);
+			screenCoord[0].X -= cornerAdd;
+			screenCoord[1].X += cornerAdd;
+			screenCoord[0].Y -= cornerAdd;
+			screenCoord[1].Y += cornerAdd;
 		}
 		
 		for (let corner = 0; corner < 4; corner++) {
