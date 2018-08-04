@@ -41,17 +41,14 @@ class UseToPickup : StaticEventHandler {
 			psa[i] = null;
 		
 		U2P_PlayerState ps;
-		for (PlayerStates.Reinit(); ps = U2P_PlayerState(PlayerStates.Next());)
-		{
+		for (PlayerStates.Reinit(); ps = U2P_PlayerState(PlayerStates.Next());) {
 			let p = ps.PlayerNum;
 			
-			if (!playeringame[p])
-			{
+			if (!playeringame[p]) {
 				// This player is no longer in-game. Disconnected during loading, perhaps?
 				ps.Destroy();
 			}
-			else if (psa[p])
-			{
+			else if (psa[p]) {
 				Console.Printf("\cgMultiple U2P_PlayerState instances for player number %d! Deleting one of them.", p);
 				ps.Destroy();
 			}
