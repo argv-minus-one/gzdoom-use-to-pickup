@@ -145,6 +145,7 @@ class U2P_PlayerState : Thinker {
 				// Doom actors are not cylindrical but square shaped. One must check the XY axes separately to determine whether they're touching.
 				// https://forum.zdoom.org/viewtopic.php?f=122&t=61508&p=1066932#p1066643
 				bool touching =
+					!pp.bNOCLIP &&
 					pp.Pos.X + pp.Radius >= item.Pos.X - item.Radius &&
 					pp.Pos.X - pp.Radius <= item.Pos.X + item.Radius &&
 					pp.Pos.Y + pp.Radius >= item.Pos.Y - item.Radius &&
