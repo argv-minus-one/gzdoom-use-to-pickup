@@ -482,9 +482,12 @@ class U2P_PlayerState : Thinker {
 	
 	static clearscope bool IsTouching(Actor a, Actor b) {
 		return
-			a.Distance2D(b) <= max(a.Radius, b.Radius) &&
-			a.Pos.Z <= b.Pos.Z + b.Height &&
-			b.Pos.Z <= a.Pos.Z + a.Height;
+			a.Pos.X - a.Radius <= b.Pos.X + b.Radius &&
+			a.Pos.X + a.Radius >= b.Pos.X - b.Radius &&
+			a.Pos.Y - a.Radius <= b.Pos.Y + b.Radius &&
+			a.Pos.Y + a.Radius >= b.Pos.Y - b.Radius &&
+			a.Pos.Z            <= b.Pos.Z + b.Height &&
+			a.Pos.Z + a.Height >= b.Pos.Z;
 	}
 }
 
