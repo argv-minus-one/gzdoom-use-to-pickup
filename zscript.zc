@@ -6,11 +6,21 @@ Version "3.4"
 
 class UseToPickup : StaticEventHandler {
 	Font MsgFont;
+	int MsgFontHeight;
+	String PickUpText;
+	TextureID BracketTex;
 	private ThinkerIterator PlayerStates, Drawables;
 	private Array<U2P_ActorClassInfo> ClassInfo;
 	
 	override void OnRegister() {
 		MsgFont = Font.FindFont('SMALLFONT');
+		MsgFontHeight = MsgFont.GetHeight();
+		PickUpText = StringTable.Localize("U2P_PickUpText", prefixed: false);
+		
+		BracketTex = TexMan.CheckForTexture("UseToPickup/bracket.png", TexMan.Type_Any);
+		if (!BracketTex.IsValid())
+			ThrowAbortException("Can't find required texture %s!", "UseToPickup/bracket.png");
+		
 		Drawables = ThinkerIterator.Create('U2P_ItemHighlight');
 		PlayerStates = ThinkerIterator.Create('U2P_PlayerState');
 		
@@ -52,9 +62,15 @@ class UseToPickup : StaticEventHandler {
 				Console.Printf("\cgMultiple U2P_PlayerState instances for player number %d! Deleting one of them.", p);
 				ps.Destroy();
 			}
-			else
+			else {
 				psa[p] = ps;
+				ps.Reinit();
+			}
 		}
+		
+		U2P_ItemHighlight d;
+		for (Drawables.Reinit(); d = U2P_ItemHighlight(Drawables.Next());)
+			d.Reinit();
 	}
 	
 	U2P_PlayerState PlayerStateOf(int p) {
@@ -99,19 +115,22 @@ class UseToPickup : StaticEventHandler {
 			return;
 		
 		U2P_DrawContext dc;
-		dc.MsgFont = MsgFont;
 		dc.InitFromRenderEvent(evt);
 		
 		Drawables.Reinit();
-		for (let drawable = Drawables.Next(); drawable; drawable = Drawables.Next())
+		U2P_ItemHighlight drawable;
+		while (drawable = U2P_ItemHighlight(Drawables.Next()))
+		if (drawable.ps.PlayerNum == consoleplayer)
 			U2P_ItemHighlight(drawable).Draw(dc);
 	}
 	
-	static clearscope U2P_ActorClassInfo ActorClassInfo(Class<Actor> actorClass) {
-		let o = UseToPickup(StaticEventHandler.Find('UseToPickup'));
-		
-		for (let idx = 0, size = o.ClassInfo.Size(); idx < size; idx++) {
-			let ci = o.ClassInfo[idx];
+	static clearscope UseToPickup Get() {
+		return UseToPickup(StaticEventHandler.Find('UseToPickup'));
+	}
+	
+	clearscope U2P_ActorClassInfo ActorClassInfo(Class<Actor> actorClass) const {
+		for (let idx = 0, size = ClassInfo.Size(); idx < size; idx++) {
+			let ci = ClassInfo[idx];
 			if (ci.ActorClass == actorClass)
 				return ci;
 		}
@@ -190,7 +209,6 @@ struct U2P_DrawContext ui {
 	U2P_Matrix WorldToClip;
 	double FracTic;
 	float ViewerFOV;
-	Font MsgFont;
 	
 	void InitFromRenderEvent(RenderEvent evt) {
 		Viewer = evt.Camera;
@@ -262,6 +280,7 @@ class U2P_PlayerState : Thinker {
 	uint8 SelectPhase;
 	transient U2P_PlayerSettings Settings;
 	transient private uint8 PushCooldown, PickupDelay;
+	transient protected UseToPickup U2P;
 	
 	U2P_PlayerState Init(PlayerInfo player, int playerNum) {
 		// Tick before U2P_ItemHighlight does.
@@ -278,7 +297,18 @@ class U2P_PlayerState : Thinker {
 		// Player 5 will select targets on tic 1, 4, 7, …
 		SelectPhase = playerNum & 3;
 		
+		Reinit();
+		
 		return self;
+	}
+	
+	// Called on WorldLoaded events, which happen when entering a map or loading a save. Take this opportunity to refill transient data, as needed.
+	void Reinit() {
+		if (!Settings)
+			Settings = new('U2P_PlayerSettings').Init(Player);
+		
+		if (!U2P)
+			U2P = UseToPickup.Get();
 	}
 	
 	void ClearFocus() {
@@ -311,9 +341,6 @@ class U2P_PlayerState : Thinker {
 	
 	// Apologies for the humongous do-everything function, but this is all done in one place as an optimization. ZScript has a high performance penalty for function calls, and this function runs in a fairly tight loop (once per tic, or 35 times per second).
 	override void Tick() {
-		if (!Settings)
-			Settings = new('U2P_PlayerSettings').Init(Player);
-		
 		if (Player.playerstate != PST_LIVE || Player.bot) {
 			// For dead players (and bots, if a regular player somehow becomes a bot), just clear everything out.
 			ClearFocus();
@@ -397,7 +424,7 @@ class U2P_PlayerState : Thinker {
 					pp.Pos.Z             <= item.Pos.Z + item.Height &&
 					pp.Pos.Z + pp.Height >= item.Pos.Z;
 				
-				let ci = UseToPickup.ActorClassInfo(item.GetClass());
+				let ci = U2P.ActorClassInfo(item.GetClass());
 				
 				if (ci && ci.AlwaysTouchPickup) {
 					// For items that can only be picked up by touch, just check if they're touching.
@@ -559,8 +586,8 @@ class U2P_ItemHighlight : Thinker {
 	protected EHighlightState HighlightState;
 	protected float TweenChange;
 	transient U2P_ActorClassInfo ClassInfo;
+	protected transient UseToPickup U2P;
 	private transient bool CheckedForClassInfo;
-	private transient ui String PickUpText;
 	
 	// Record this information so that the highlight can fade out, even if the item disappears.
 	U2P_ActorAdjustedGeometry TargetGeom;
@@ -574,7 +601,31 @@ class U2P_ItemHighlight : Thinker {
 		self.Target = target;
 		HighlightState = FADING_IN;
 		self.ClassInfo = classInfo;
+		Reinit();
 		return self;
+	}
+	
+	void Reinit() {
+		if (!U2P)
+			U2P = UseToPickup.Get();
+		
+		if (!ClassInfo && Target)
+			ClassInfo = U2P.ActorClassInfo(Target.GetClass());
+		
+		if (!TargetTag) {
+			if (ClassInfo && ClassInfo.ForceTag)
+				TargetTag = StringTable.Localize(ClassInfo.Tag);
+			else {
+				String cn = Target.GetClassName();
+				TargetTag = Target.GetTag(
+					ClassInfo && ClassInfo.Tag?
+					ClassInfo.Tag :
+					ClassInfo && ClassInfo.UsePickupMessageAsTag?
+					Target.PickupMsg :
+					cn
+				);
+			}
+		}
 	}
 	
 	override void Tick() {
@@ -599,34 +650,12 @@ class U2P_ItemHighlight : Thinker {
 			// Otherwise, carry on.
 		}
 		
-		if (Target && Target.bSpecial) {
-			if (!CheckedForClassInfo && !ClassInfo) {
-				ClassInfo = UseToPickup.ActorClassInfo(Target.GetClass());
-				CheckedForClassInfo = true;
-			}
-			
-			TargetGeom.Update(Target, ClassInfo, bobOffset: true);
-			
-			if (ClassInfo && ClassInfo.ForceTag) {
-				if (!TargetTag)
-					TargetTag = StringTable.Localize(ClassInfo.Tag);
-			}
-			else {
-				String cn = Target.GetClassName();
-				TargetTag = Target.GetTag(
-					ClassInfo && ClassInfo.Tag?
-					ClassInfo.Tag :
-					ClassInfo && ClassInfo.UsePickupMessageAsTag?
-					Target.PickupMsg :
-					cn
-				);
-				TargetTag = StringTable.Localize(TargetTag);
-			}
-		}
-		else {
+		if (!Target || !Target.bSpecial) {
 			// Target lost. Fade out.
 			FadeOut();
 		}
+		else
+			TargetGeom.Update(Target, ClassInfo, bobOffset: true);
 		
 		if (HighlightState == FADING_IN || HighlightState == FADING_OUT) {
 			double time;
@@ -664,21 +693,14 @@ class U2P_ItemHighlight : Thinker {
 	}
 	
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
-	const BracketTexName = "UseToPickup/bracket.png";
-	private transient ui TextureID BracketTex;
 	
 	// Scale the brackets such that they're drawn 1:1 on a screen whose min(width,height) is this many pixels.
 	const ScaleBase = 4000.;
 	
-	ui void Draw(U2P_DrawContext dc) {
+	ui void Draw(U2P_DrawContext dc) const {
 		if (
-			// Don't actually draw anything for anyone other than the console player.
-			// Note that these highlighters have playsim effects too, so they still exist for other players; they just aren't drawn.
-			ps.PlayerNum != consoleplayer ||
 			// Don't bother drawing anything if opacity is zero!
-			Tween <= 0. ||
-			// If U2P_PlayerSettings hasn't been reinitialized yet, wait for that to happen.
-			!ps.Settings
+			Tween <= 0.
 		)
 			return;
 		
@@ -689,20 +711,13 @@ class U2P_ItemHighlight : Thinker {
 				return;
 		}
 		
-		// Look up the bracket texture, if needed.
-		if (!BracketTex.IsValid()) {
-			BracketTex = TexMan.CheckForTexture(BracketTexName, TexMan.Type_Any);
-			if (!BracketTex.IsValid())
-				ThrowAbortException("%s can't find required texture %s!", GetClassName(), BracketTexName);
-		}
-		
 		Color highlightColor = ps.Settings.HighlightColor.GetInt() | 0xff000000;
 		let fracTween = Tween + TweenChange * dc.FracTic;
 		let opacity = clamp(ps.Settings.HighlightOpacity.GetFloat(), 0., 1.) * fracTween;
 		
 		// Top left, bottom right
 		Vector2 screenCoord[2];
-		let halfRad = TargetGeom.Radius / 2;
+		let halfRad = TargetGeom.Radius * .5;
 		
 		// Adapted from Pixel Eater's Fill Spectre.
 		for (let corner = 0; corner < 4; corner++) {
@@ -742,7 +757,7 @@ class U2P_ItemHighlight : Thinker {
 			}
 		}
 		
-		let texSize = TexMan.GetScaledSize(BracketTex) * (min(Screen.GetWidth(), Screen.GetHeight()) / ScaleBase);
+		let texSize = TexMan.GetScaledSize(U2P.BracketTex) * (min(Screen.GetWidth(), Screen.GetHeight()) / ScaleBase);
 		
 		// Make sure the brackets don't overlap.
 		{
@@ -755,7 +770,7 @@ class U2P_ItemHighlight : Thinker {
 		
 		for (let corner = 0; corner < 4; corner++) {
 			Screen.DrawTexture(
-				BracketTex, false,
+				U2P.BracketTex, false,
 				screenCoord[corner & 1].X - (corner & 1? texSize.X : 0.),
 				// (2 & 2) = 2, but we need 0 or 1. !! gives us that.
 				screenCoord[!!(corner & 2)].Y - (corner & 2? texSize.Y : 0),
@@ -769,7 +784,7 @@ class U2P_ItemHighlight : Thinker {
 			);
 		}
 		
-		let fontHeight = dc.MsgFont.GetHeight() * CleanYFac;
+		let fontHeight = U2P.MsgFontHeight * CleanYFac;
 		
 		Vector2 textCoord = (
 			screenCoord[0].X,
@@ -777,10 +792,10 @@ class U2P_ItemHighlight : Thinker {
 		);
 		
 		Screen.DrawText(
-			dc.MsgFont, Font.CR_WHITE,
+			U2P.MsgFont, Font.CR_WHITE,
 			textCoord.X, textCoord.Y,
 			TargetTag,
-			DTA_TextLen, int(TargetTag.Length() * fracTween),
+			DTA_TextLen, fracTween >= 1.? int.max : int(TargetTag.Length() * fracTween),
 			DTA_Alpha, opacity,
 			DTA_CleanNoMove, true,
 			DTA_Color, highlightColor
@@ -796,7 +811,7 @@ class U2P_ItemHighlight : Thinker {
 				[bindingKeys[0], bindingKeys[1]] = Bindings.GetKeysForCommand("+use");
 				keyName = KeyBindings.NameKeys(bindingKeys[0], bindingKeys[1]);
 			}
-			let keyNameWidth = dc.MsgFont.StringWidth(keyName) * CleanXFac;
+			let keyNameWidth = U2P.MsgFont.StringWidth(keyName) * CleanXFac;
 			let borderWidth = max(fontHeight >> 2, 1);
 			
 			Screen.Dim(
@@ -809,7 +824,7 @@ class U2P_ItemHighlight : Thinker {
 			);
 			
 			Screen.DrawText(
-				dc.MsgFont, Font.CR_WHITE,
+				U2P.MsgFont, Font.CR_WHITE,
 				textCoord.X, textCoord.Y,
 				keyName,
 				DTA_Alpha, opacity,
@@ -818,18 +833,15 @@ class U2P_ItemHighlight : Thinker {
 			);
 			
 			// Advance the draw position for the text.
-			textCoord.X += keyNameWidth + borderWidth + borderWidth + dc.MsgFont.GetCharWidth(20) * 2;
+			textCoord.X += keyNameWidth + borderWidth + borderWidth + U2P.MsgFont.GetCharWidth(20) * 2;
 		}
 		
 		// Draw the “pick up” label.
-		if (!PickUpText)
-			PickUpText = StringTable.Localize("U2P_PickUpText", prefixed: false);
-		
 		Screen.DrawText(
-			dc.MsgFont, Font.CR_WHITE,
+			U2P.MsgFont, Font.CR_WHITE,
 			textCoord.X, textCoord.Y,
-			PickUpText,
-			DTA_TextLen, int(PickUpText.Length() * fracTween),
+			U2P.PickUpText,
+			DTA_TextLen, fracTween >= 1.? int.max : int(U2P.PickUpText.Length() * fracTween),
 			DTA_Alpha, opacity,
 			DTA_CleanNoMove, true,
 			DTA_Color, highlightColor
