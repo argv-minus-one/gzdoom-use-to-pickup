@@ -168,7 +168,7 @@ class U2P_ActorClassInfo {
 	double Radius, Height, ZOffset;
 	
 	void Init(U2P_INISection section) {
-		Tag = section.Get("Tag");
+		Tag = StringTable.Localize(section.Get("Tag"));
 		AlwaysTouchPickup = section.GetBool("AlwaysTouchPickup");
 		ForceTag = section.GetBool("ForceTag");
 		UsePickupMessageAsTag = section.GetBool("UsePickupMessageAsTag");
