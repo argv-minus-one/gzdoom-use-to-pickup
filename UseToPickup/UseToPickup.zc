@@ -89,14 +89,6 @@ class UseToPickup : StaticEventHandler {
 			new('U2P_PlayerState').Init(players[p], p);
 	}
 	
-	override void PlayerRespawned(PlayerEvent evt) {
-		// Clear the focus of the respawning player actor.
-		// This will happen anyway if the player spends at least one tic dead, but just in case…
-		let ps = PlayerStateOf(evt.PlayerNumber);
-		if (ps)
-			ps.ClearFocus();
-	}
-	
 	override void PlayerDisconnected(PlayerEvent evt) {
 		// Find and destroy the U2P_PlayerState for the disconnecting player.
 		let ps = PlayerStateOf(evt.PlayerNumber);
@@ -146,9 +138,12 @@ class UseToPickup : StaticEventHandler {
 		'usetopickup_enabled',
 		'usetopickup_highlight_color',
 		'usetopickup_highlight_opacity',
+		'usetopickup_highlight_opacity_unfocused',
 		'usetopickup_fadeintime',
 		'usetopickup_fadeouttime',
 		'usetopickup_fulluserange',
+		'usetopickup_highlight_range',
+		'usetopickup_highlight_range_max',
 		'usetopickup_pickupdelay',
 		'usetopickup_scanfreq'
 	};

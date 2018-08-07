@@ -1,15 +1,16 @@
 class U2P_ItemHighlight : Thinker {
-	enum EHighlightState {
-		FADING_IN,
-		STEADY,
-		FADING_OUT
+	enum ETweenElement {
+		ITW_OPACITY = 0,
+		ITW_TEXT,
+		ITW_BRACKET,
+		ITW_MAX = ITW_BRACKET
 	};
 	
 	U2P_PlayerState ps;
 	Inventory Target;
-	float Tween;
-	protected EHighlightState HighlightState;
-	protected float TweenChange;
+	float Tween[ITW_MAX+1];
+	bool Focused;
+	protected float TweenChange[ITW_MAX+1];
 	transient U2P_ActorClassInfo ClassInfo;
 	protected transient UseToPickup U2P;
 	private transient bool CheckedForClassInfo;
@@ -24,8 +25,12 @@ class U2P_ItemHighlight : Thinker {
 		
 		self.ps = ps;
 		self.Target = target;
-		HighlightState = FADING_IN;
 		self.ClassInfo = classInfo;
+		Focused = false;
+		
+		for (let i = 0; i <= ITW_MAX; i++)
+			Tween[i] = TweenChange[i] = 0;
+		
 		Reinit();
 		return self;
 	}
@@ -54,16 +59,18 @@ class U2P_ItemHighlight : Thinker {
 	}
 	
 	override void Tick() {
-		if (!ps || !ps.Player) {
+		if (!ps || !ps.Player || ps.Player.bot) {
 			Destroy();
 			return;
 		}
+		
+		float destTween[ITW_MAX+1];
 		
 		switch (ps.Player.playerstate) {
 			case PST_DEAD:
 			case PST_REBORN:
 				// If player is dead, fade out.
-				FadeOut();
+				Target = null;
 				break;
 			
 			case PST_ENTER:
@@ -75,46 +82,59 @@ class U2P_ItemHighlight : Thinker {
 			// Otherwise, carry on.
 		}
 		
-		if (!Target || !Target.bSpecial) {
-			// Target lost. Fade out.
-			FadeOut();
-		}
-		else
+		// Compute intended values for the various tweens.
+		if (Target && Target.bSpecial) {
 			TargetGeom.Update(Target, ClassInfo, bobOffset: true);
-		
-		if (HighlightState == FADING_IN || HighlightState == FADING_OUT) {
-			double time;
-			if (HighlightState == FADING_IN)
-				time = ps.Settings.FadeInTime.GetFloat();
-			else
-				time = ps.Settings.FadeOutTime.GetFloat();
 			
-			// Avoid division by zero.
-			// Division by zero would actually yield correct results (positive infinity), but the engine crashes instead of passing such a value through, so we have to special-case it.
-			// Inspired by AFADoomer: https://forum.zdoom.org/posting.php?mode=reply&f=18&t=61454#pr1065822
-			TweenChange = 1. / (max(time, double.epsilon) * TICRATE);
+			destTween[ITW_BRACKET] = 1;
+			destTween[ITW_TEXT] = Focused? 1 : 0;
 			
-			if (HighlightState == FADING_OUT)
-				TweenChange = -TweenChange;
+			let setting = Focused? ps.Settings.HighlightOpacity : ps.Settings.HighlightOpacityUnfocused;
+			destTween[ITW_OPACITY] = setting.GetFloat();
+		}
+		else {
+			if (Tween[ITW_OPACITY] + TweenChange[ITW_OPACITY] <= 0.) {
+				// Fully faded out.
+				Destroy();
+				return;
+			}
+			else {
+				// Start/continue fading out.
+				Target = null;
+				Focused = false;
+				for (let i = 0; i <= ITW_MAX; i++)
+					destTween[i] = 0;
+			}
 		}
 		
-		if (TweenChange)
-			Tween = clamp(Tween + TweenChange, 0., 1.);
+		// Get how long it's supposed to take to fade in/out.
+		double fadeRate[2];
+		{
+			CVar fadeTimeSetting[2];
+			fadeTimeSetting[0] = ps.Settings.FadeInTime;
+			fadeTimeSetting[1] = ps.Settings.FadeOutTime;
+			
+			for (let i = 0; i < 2; i++)
+				fadeRate[i] = 1. / (max(fadeTimeSetting[i].GetFloat(), double.epsilon) * TICRATE);
+			fadeRate[1] = -fadeRate[1];
+		}
 		
-		if (Tween == 0.) {
-			// Fully faded out.
-			Destroy();
+		for (let i = 0; i <= ITW_MAX; i++) {
+			// Apply this tic's change.
+			bool changePositive = TweenChange[i] > 0.;
+			if (TweenChange[i] && changePositive == (destTween[i] > Tween[i])) {
+				if (changePositive)
+					Tween[i] = min(destTween[i], Tween[i] + TweenChange[i]);
+				else
+					Tween[i] = max(destTween[i], Tween[i] + TweenChange[i]);
+			}
+			
+			// Compute next tic's change.
+			TweenChange[i] =
+				destTween[i] > Tween[i]? fadeRate[0] :
+				destTween[i] < Tween[i]? fadeRate[1] :
+				0.;
 		}
-		else if (Tween == 1.) {
-			// Fully visible.
-			HighlightState = STEADY;
-			TweenChange = 0;
-		}
-	}
-	
-	void FadeOut() {
-		HighlightState = FADING_OUT;
-		Target = null;
 	}
 	
 	const BackgroundColor_KeyBind = Color(0xffffffe6);
@@ -124,9 +144,14 @@ class U2P_ItemHighlight : Thinker {
 	const ScaleBase = 4000.;
 	
 	ui void Draw(U2P_DrawContext dc) const {
+		// Compute tween values for this frame.
+		float fracTween[ITW_MAX+1];
+		for (let i = 0; i <= ITW_MAX; i++)
+			fracTween[i] = clamp(Tween[i] + TweenChange[i], 0., 1.);
+		
 		if (
 			// Don't bother drawing anything if opacity is zero!
-			Tween <= 0.
+			fracTween[ITW_OPACITY] == 0.
 		)
 			return;
 		
@@ -138,8 +163,6 @@ class U2P_ItemHighlight : Thinker {
 		}
 		
 		Color highlightColor = ps.Settings.HighlightColor.GetInt() | 0xff000000;
-		let fracTween = Tween + TweenChange * dc.FracTic;
-		let opacity = clamp(ps.Settings.HighlightOpacity.GetFloat(), 0., 1.) * fracTween;
 		
 		// Top left, bottom right
 		Vector2 screenCoord[2];
@@ -195,8 +218,8 @@ class U2P_ItemHighlight : Thinker {
 		}
 		
 		// Spread out the brackets a little further when fading in/out.
-		if (fracTween < 1.) {
-			let cornerAdds = (screenCoord[1] - screenCoord[0]) * .5 * ((1. - fracTween) * BracketSpreadDistance);
+		if (fracTween[ITW_BRACKET] < 1.) {
+			let cornerAdds = (screenCoord[1] - screenCoord[0]) * .5 * ((1. - fracTween[ITW_BRACKET]) * BracketSpreadDistance);
 			let cornerAdd = min(cornerAdds.X, cornerAdds.Y);
 			screenCoord[0].X -= cornerAdd;
 			screenCoord[1].X += cornerAdd;
@@ -210,7 +233,7 @@ class U2P_ItemHighlight : Thinker {
 				screenCoord[corner & 1].X - (corner & 1? texSize.X : 0.),
 				// (2 & 2) = 2, but we need 0 or 1. !! gives us that.
 				screenCoord[!!(corner & 2)].Y - (corner & 2? texSize.Y : 0),
-				DTA_Alpha, opacity,
+				DTA_Alpha, fracTween[ITW_OPACITY],
 				DTA_AlphaChannel, true,
 				DTA_FillColor, highlightColor,
 				DTA_FlipX, corner & 1,
@@ -220,67 +243,69 @@ class U2P_ItemHighlight : Thinker {
 			);
 		}
 		
-		let fontHeight = U2P.MsgFontHeight * CleanYFac;
-		
-		Vector2 textCoord = (
-			screenCoord[0].X,
-			screenCoord[1].Y + (fontHeight * .8)
-		);
-		
-		Screen.DrawText(
-			U2P.MsgFont, Font.CR_WHITE,
-			textCoord.X, textCoord.Y,
-			TargetTag,
-			DTA_TextLen, fracTween >= 1.? int.max : int(TargetTag.Length() * fracTween),
-			DTA_Alpha, opacity,
-			DTA_CleanNoMove, true,
-			DTA_Color, highlightColor
-		);
-		
-		textCoord.Y += fontHeight * 1.8;
-		
-		{
-			// Draw the label saying which button to push.
-			String keyName;
-			{
-				int bindingKeys[2];
-				[bindingKeys[0], bindingKeys[1]] = Bindings.GetKeysForCommand("+use");
-				keyName = KeyBindings.NameKeys(bindingKeys[0], bindingKeys[1]);
-			}
-			let keyNameWidth = U2P.MsgFont.StringWidth(keyName) * CleanXFac;
-			let borderWidth = max(fontHeight >> 2, 1);
+		if (fracTween[ITW_TEXT] != 0.) {
+			let fontHeight = U2P.MsgFontHeight * CleanYFac;
 			
-			Screen.Dim(
-				BackgroundColor_KeyBind,
-				opacity,
-				textCoord.X - borderWidth,
-				textCoord.Y - borderWidth,
-				keyNameWidth + borderWidth + borderWidth,
-				fontHeight + borderWidth + borderWidth
+			Vector2 textCoord = (
+				screenCoord[0].X,
+				screenCoord[1].Y + (fontHeight * .8)
 			);
 			
 			Screen.DrawText(
 				U2P.MsgFont, Font.CR_WHITE,
 				textCoord.X, textCoord.Y,
-				keyName,
-				DTA_Alpha, opacity,
+				TargetTag,
+				DTA_TextLen, fracTween[ITW_TEXT] >= 1.? int.max : int(TargetTag.Length() * fracTween[ITW_TEXT]),
+				DTA_Alpha, fracTween[ITW_OPACITY],
 				DTA_CleanNoMove, true,
 				DTA_Color, highlightColor
 			);
 			
-			// Advance the draw position for the text.
-			textCoord.X += keyNameWidth + borderWidth + borderWidth + U2P.MsgFont.GetCharWidth(20) * 2;
+			textCoord.Y += fontHeight * 1.8;
+			
+			{
+				// Draw the label saying which button to push.
+				String keyName;
+				{
+					int bindingKeys[2];
+					[bindingKeys[0], bindingKeys[1]] = Bindings.GetKeysForCommand("+use");
+					keyName = KeyBindings.NameKeys(bindingKeys[0], bindingKeys[1]);
+				}
+				let keyNameWidth = U2P.MsgFont.StringWidth(keyName) * CleanXFac;
+				let borderWidth = max(fontHeight >> 2, 1);
+				
+				Screen.Dim(
+					BackgroundColor_KeyBind,
+					fracTween[ITW_OPACITY],
+					textCoord.X - borderWidth,
+					textCoord.Y - borderWidth,
+					keyNameWidth + borderWidth + borderWidth,
+					fontHeight + borderWidth + borderWidth
+				);
+				
+				Screen.DrawText(
+					U2P.MsgFont, Font.CR_WHITE,
+					textCoord.X, textCoord.Y,
+					keyName,
+					DTA_Alpha, fracTween[ITW_OPACITY],
+					DTA_CleanNoMove, true,
+					DTA_Color, highlightColor
+				);
+				
+				// Advance the draw position for the text.
+				textCoord.X += keyNameWidth + borderWidth + borderWidth + U2P.MsgFont.GetCharWidth(20) * 2;
+			}
+			
+			// Draw the “pick up” label.
+			Screen.DrawText(
+				U2P.MsgFont, Font.CR_WHITE,
+				textCoord.X, textCoord.Y,
+				U2P.PickUpText,
+				DTA_TextLen, fracTween[ITW_TEXT] >= 1.? int.max : int(U2P.PickUpText.Length() * fracTween[ITW_TEXT]),
+				DTA_Alpha, fracTween[ITW_OPACITY],
+				DTA_CleanNoMove, true,
+				DTA_Color, highlightColor
+			);
 		}
-		
-		// Draw the “pick up” label.
-		Screen.DrawText(
-			U2P.MsgFont, Font.CR_WHITE,
-			textCoord.X, textCoord.Y,
-			U2P.PickUpText,
-			DTA_TextLen, fracTween >= 1.? int.max : int(U2P.PickUpText.Length() * fracTween),
-			DTA_Alpha, opacity,
-			DTA_CleanNoMove, true,
-			DTA_Color, highlightColor
-		);
 	}
 }
