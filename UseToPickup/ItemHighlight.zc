@@ -40,7 +40,7 @@ class U2P_ItemHighlight : Thinker {
 		if (!TargetTag) {
 			if (ClassInfo && ClassInfo.ForceTag)
 				TargetTag = StringTable.Localize(ClassInfo.Tag);
-			else {
+			else if (Target) {
 				String cn = Target.GetClassName();
 				TargetTag = Target.GetTag(
 					ClassInfo && ClassInfo.Tag?
