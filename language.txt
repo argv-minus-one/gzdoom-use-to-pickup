@@ -12,7 +12,6 @@ U2P_OptionsMenu_FadeOutTime = "Fade-out time (seconds)";
 U2P_OptionsMenu_PickupDelay = "Delay before allowing pickup (seconds)";
 U2P_OptionsMenu_ResetDefaultConfirm = "This will reset all Use To Pickup settings (except key bindings) to their defaults. Are you sure?";
 U2P_OptionsMenu_HighlightRange = "Highlight all items range";
-U2P_OptionsMenu_HighlightRangeMax = "\"Highlight all items range\" limit";
 U2P_OptionsMenu_FocusedOnly = "Disabled";
 U2P_KeyBindMenu_Heading = "Use To Pickup";
 U2P_KeyBindMenu_EnableToggle = "Toggle Enabled";

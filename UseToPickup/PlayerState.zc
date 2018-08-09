@@ -134,7 +134,7 @@ class U2P_PlayerState : Thinker {
 			uint highlightedItemsMax = highlightedItems.Size();
 			
 			// If usetopickup_highlight_opacity_unfocused is not positive, then we'll never highlight items that aren't within pickup range. Otherwise, get how far away items will be highlighted from.
-			let highlightRange = canShowUnfocused? clamp(Settings.HighlightRange.GetFloat(), 0., usetopickup_highlight_range_max) : 0.;
+			let highlightRange = canShowUnfocused? max(Settings.HighlightRange.GetFloat(), 0.) : 0.;
 			canShowUnfocused = canShowUnfocused && highlightRange > 0.;
 			
 			double pickupRange;
