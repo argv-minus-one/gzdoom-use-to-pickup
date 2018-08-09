@@ -42,6 +42,8 @@ When an item is highlighted by this mod, brackets are drawn around it, and a tex
 
 Opacity is given as a value between 0 and 1, where 0 is completely invisible and 1 is completely opaque. For example, setting this to 0.5 will result in the brackets and label being only 50% opaque.
 
+This mod can also show brackets around all nearby items. The “…when not looking straight at it” setting controls how opaque those brackets will be. If set to 0, this feature is disabled.
+
 ### Fade-in time & fade-out time
 
 When you look at an item, the brackets and labels around it will fade in for a moment. Similarly, when you look away, the brackets and labels will fade out. These options control how long, in seconds, the fade in/out animation lasts.
@@ -49,6 +51,12 @@ When you look at an item, the brackets and labels around it will fade in for a m
 ### Delay before allowing pickup
 
 When you look at an item, there's a slight delay before you can actually pick it up. That's to help protect you from accidentally picking up the wrong item. This lets you adjust how long that delay is, in seconds. Set to 0 to turn this feature off.
+
+### Highlight all items range
+
+This mod can show brackets around all nearby items, not just ones that you're aiming at and are close enough to pick up. That makes it easier to spot them among the corpses of your enemies. This setting decides how close an item must be, in map units, to be highlighted like this.
+
+Warning: This slows down your frame rate depending on how many items are highlighted. Set to 0 to disable this feature. (I would appreciate help optimizing this.)
 
 ### Toggle Enabled
 
