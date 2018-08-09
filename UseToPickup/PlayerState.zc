@@ -105,7 +105,7 @@ class U2P_PlayerState : Thinker {
 		}
 		
 		let scanFreq = max(1, usetopickup_scanfreq);
-		if (pp && enabled && (gametic % scanFreq) == (PlayerNum % scanFreq)) {
+		if (pp && enabled && (scanFreq == 1 || (gametic % scanFreq) == (PlayerNum % scanFreq))) {
 			// Search for items nearby.
 			Inventory bestTarget = null;
 			U2P_ItemHighlight bestTargetHL = null;
