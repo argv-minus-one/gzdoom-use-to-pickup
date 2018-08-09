@@ -134,9 +134,7 @@ class U2P_PlayerState : Thinker {
 			uint highlightedItemsMax = highlightedItems.Size();
 			
 			// If usetopickup_highlight_opacity_unfocused is not positive, then we'll never highlight items that aren't within pickup range. Otherwise, get how far away items will be highlighted from.
-			let highlightRange = canShowUnfocused? 0. : clamp(Settings.HighlightRange.GetFloat(), 0., usetopickup_highlight_range_max);
-			
-			let i = BlockThingsIterator.CreateFromPos(viewPos.X, viewPos.Y, viewPos.Z, highlightRange, highlightRange, false);
+			let highlightRange = canShowUnfocused? clamp(Settings.HighlightRange.GetFloat(), 0., usetopickup_highlight_range_max) : 0.;
 			double pickupRange;
 			bool pickupRange3D;
 			
@@ -157,6 +155,7 @@ class U2P_PlayerState : Thinker {
 				pickupRange3D = false;
 			}
 			
+			let i = BlockThingsIterator.CreateFromPos(viewPos.X, viewPos.Y, viewPos.Z, highlightRange, highlightRange, false);
 			Array<Inventory> itemsShouldHighlight;
 			
 			// Look for the item that's closest to the center of the player actor's field of view.
