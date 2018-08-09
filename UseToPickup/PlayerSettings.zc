@@ -1,7 +1,7 @@
 // There should always be exactly one instance of this class for every instance of U2P_PlayerState.
 // It's a separate class because CVars, and therefore U2P_PlayerSettings, have a different lifecycle (they aren't saved, and are reinitialized on loading a save) than U2P_PlayerState (which is saved).
 class U2P_PlayerSettings {
-	CVar IsEnabled, HighlightColor, HighlightOpacity, HighlightOpacityUnfocused, HighlightRange, MaxHighlightRange, FadeInTime, FadeOutTime, PickupDelay;
+	CVar IsEnabled, HighlightColor, HighlightOpacity, HighlightOpacityUnfocused, HighlightRange, FadeInTime, FadeOutTime, PickupDelay;
 	
 	U2P_PlayerSettings Init(PlayerInfo player) {
 		IsEnabled = CVar.GetCVar('usetopickup_enabled', Player);
