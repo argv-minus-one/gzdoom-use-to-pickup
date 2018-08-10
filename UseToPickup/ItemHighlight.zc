@@ -13,7 +13,6 @@ class U2P_ItemHighlight : Thinker {
 	protected float TweenChange[ITW_MAX+1];
 	transient U2P_ActorClassInfo ClassInfo;
 	protected transient UseToPickup U2P;
-	private transient bool CheckedForClassInfo;
 	
 	// Record this information so that the highlight can fade out, even if the item disappears.
 	U2P_ActorAdjustedGeometry TargetGeom;
