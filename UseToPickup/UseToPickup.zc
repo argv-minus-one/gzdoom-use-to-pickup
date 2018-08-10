@@ -4,6 +4,7 @@ class UseToPickup : StaticEventHandler {
 	String PickUpText;
 	TextureID BracketTex;
 	private ThinkerIterator PlayerStates, Drawables;
+	private Array<Class<Actor> > ClassInfoClasses;
 	private Array<U2P_ActorClassInfo> ClassInfo;
 	
 	override void OnRegister() {
@@ -34,6 +35,7 @@ class UseToPickup : StaticEventHandler {
 			ci.ActorClass = ac;
 			ci.Init(sec);
 			ClassInfo.Push(ci);
+			ClassInfoClasses.Push(ac);
 		}
 	}
 	
@@ -115,13 +117,11 @@ class UseToPickup : StaticEventHandler {
 	}
 	
 	clearscope U2P_ActorClassInfo ActorClassInfo(Class<Actor> actorClass) const {
-		for (let idx = 0, size = ClassInfo.Size(); idx < size; idx++) {
-			let ci = ClassInfo[idx];
-			if (ci.ActorClass == actorClass)
-				return ci;
-		}
-		
-		return null;
+		let idx = ClassInfoClasses.Find(actorClass);
+		if (idx != ClassInfoClasses.Size())
+			return ClassInfo[idx];
+		else
+			return null;
 	}
 	
 	override void NetworkProcess(ConsoleEvent evt) {
