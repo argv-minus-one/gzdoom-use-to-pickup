@@ -82,6 +82,10 @@ class U2P_ItemHighlight : Thinker {
 			// Otherwise, carry on.
 		}
 		
+		if (ps && !ps.Settings.IsEnabled.GetBool())
+			// Mod disabled. Fade out all highlights.
+			Target = null;
+		
 		// Compute intended values for the various tweens.
 		if (Target && Target.bSpecial) {
 			TargetGeom.Update(Target, ClassInfo, bobOffset: true);
